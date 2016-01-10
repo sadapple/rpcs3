@@ -1,5 +1,7 @@
 #pragma once
 
+#include "SharedMutex.h"
+
 namespace fom // file open mode
 {
 	enum open_mode : u32
@@ -17,13 +19,15 @@ namespace fom // file open mode
 
 namespace fs
 {
-	enum seek_mode : u32 // file seek mode
+	// File seek mode
+	enum seek_mode : u32
 	{
 		seek_set,
 		seek_cur,
 		seek_end,
 	};
 
+	// File attributes (TODO)
 	struct stat_t
 	{
 		bool is_directory;
@@ -33,6 +37,67 @@ namespace fs
 		s64 mtime;
 		s64 ctime;
 	};
+
+	// File handle base
+	struct file_base
+	{
+		virtual ~file_base() = default;
+
+		virtual stat_t stat() = 0;
+		virtual bool trunc(u64 length) = 0;
+		virtual u64 read(void* buffer, u64 size) = 0;
+		virtual u64 write(const void* buffer, u64 size) = 0;
+		virtual u64 seek(s64 offset, seek_mode whence) = 0;
+		virtual u64 size() = 0;
+	};
+
+	// Directory entry (TODO)
+	struct dir_entry : stat_t
+	{
+		std::string name;
+	};
+
+	// Directory handle base
+	struct dir_base
+	{
+		virtual ~dir_base() = default;
+
+		virtual bool read(dir_entry&) = 0;
+		virtual void rewind() = 0;
+	};
+
+	// Virtual device
+	struct device_base
+	{
+		virtual ~device_base() = default;
+
+		virtual bool stat(const std::string& path, stat_t& info) = 0;
+		virtual bool remove_dir(const std::string& path) = 0;
+		virtual bool create_dir(const std::string& path) = 0;
+		virtual bool rename(const std::string& from, const std::string& to) = 0;
+		virtual bool remove(const std::string& path) = 0;
+		virtual bool trunc(const std::string& path, u64 length) = 0;
+
+		virtual std::unique_ptr<file_base> open(const std::string& path, u32 mode) = 0;
+		virtual std::unique_ptr<dir_base> open_dir(const std::string& path) = 0;
+	};
+
+	class device_manager final
+	{
+		mutable shared_mutex m_mutex;
+
+		std::unordered_map<std::string, std::shared_ptr<device_base>> m_map;
+
+	public:
+		std::shared_ptr<device_base> get_device(const std::string& name);
+		std::shared_ptr<device_base> set_device(const std::string& name, const std::shared_ptr<device_base>&);
+	};
+
+	// Get virtual device for specified path (nullptr for real path)
+	std::shared_ptr<device_base> get_virtual_device(const std::string& path);
+
+	// Set virtual device with specified name (nullptr for deletion)
+	std::shared_ptr<device_base> set_virtual_device(const std::string& root_name, const std::shared_ptr<device_base>&);
 
 	// Get parent directory for the path (returns empty string on failure)
 	std::string get_parent_dir(const std::string& path);
@@ -72,77 +137,95 @@ namespace fs
 
 	class file final
 	{
-		using handle_type = std::intptr_t;
-
-		constexpr static handle_type null = -1;
-
-		handle_type m_fd = null;
-
-		friend class file_read_map;
-		friend class file_write_map;
+		std::unique_ptr<file_base> m_file;
 
 	public:
 		file() = default;
 
+		// Open file handler
 		explicit file(const std::string& path, u32 mode = fom::read)
 		{
 			open(path, mode);
 		}
 
-		file(file&& other)
-			: m_fd(other.m_fd)
+		// Import file handler
+		template<typename T, typename = std::enable_if_t<std::is_base_of<file_base, T>::value>>
+		file(std::unique_ptr<T>&& _file)
+			: m_file(std::move(_file))
 		{
-			other.m_fd = null;
 		}
 
-		file& operator =(file&& right)
-		{
-			std::swap(m_fd, right.m_fd);
-			return *this;
-		}
-
-		~file();
-
-		// Check whether the handle is valid (opened file)
-		bool is_opened() const
-		{
-			return m_fd != null;
-		}
+		// Forbid nullptr arg
+		file(std::nullptr_t) = delete;
 
 		// Check whether the handle is valid (opened file)
 		explicit operator bool() const
 		{
-			return is_opened();
+			return m_file.operator bool();
 		}
 
 		// Open specified file with specified mode
 		bool open(const std::string& path, u32 mode = fom::read);
 
+		// Close the file explicitly, return file handler
+		std::unique_ptr<file_base> release()
+		{
+			return std::move(m_file);
+		}
+
 		// Change file size (possibly appending zero bytes)
-		bool trunc(u64 size) const;
+		bool trunc(u64 length) const
+		{
+			Expects(m_file);
+			return m_file->trunc(length);
+		}
 
 		// Get file information
-		bool stat(stat_t& info) const;
-
-		// Close the file explicitly (destructor automatically closes the file)
-		void close();
+		stat_t stat() const
+		{
+			Expects(m_file);
+			return m_file->stat();
+		}
 
 		// Read the data from the file and return the amount of data written in buffer
-		u64 read(void* buffer, u64 count) const;
+		u64 read(void* buffer, u64 count) const
+		{
+			Expects(m_file);
+			return m_file->read(buffer, count);
+		}
 
 		// Write the data to the file and return the amount of data actually written
-		u64 write(const void* buffer, u64 count) const;
+		u64 write(const void* buffer, u64 count) const
+		{
+			Expects(m_file);
+			return m_file->write(buffer, count);
+		}
 
-		// Move file pointer
-		u64 seek(s64 offset, seek_mode whence = seek_set) const;
+		// Change current position, returns previous position
+		u64 seek(s64 offset, seek_mode whence = seek_set) const
+		{
+			Expects(m_file);
+			return m_file->seek(offset, whence);
+		}
 
 		// Get file size
-		u64 size() const;
+		u64 size() const
+		{
+			Expects(m_file);
+			return m_file->size();
+		}
+
+		// Get current position
+		u64 pos() const
+		{
+			Expects(m_file);
+			return m_file->seek(0, seek_cur);
+		}
 
 		// Write std::string unconditionally
 		const file& write(const std::string& str) const
 		{
-			CHECK_ASSERTION(write(str.data(), str.size()) == str.size());
+			ASSERT(write(str.data(), str.size()) == str.size());
 			return *this;
 		}
 
@@ -150,7 +233,7 @@ namespace fs
 		template<typename T>
 		std::enable_if_t<std::is_pod<T>::value && !std::is_pointer<T>::value, const file&> write(const T& data) const
 		{
-			CHECK_ASSERTION(write(std::addressof(data), sizeof(T)) == sizeof(T));
+			ASSERT(write(std::addressof(data), sizeof(T)) == sizeof(T));
 			return *this;
 		}
 
@@ -158,7 +241,7 @@ namespace fs
 		template<typename T>
 		std::enable_if_t<std::is_pod<T>::value && !std::is_pointer<T>::value, const file&> write(const std::vector<T>& vec) const
 		{
-			CHECK_ASSERTION(write(vec.data(), vec.size() * sizeof(T)) == vec.size() * sizeof(T));
+			ASSERT(write(vec.data(), vec.size() * sizeof(T)) == vec.size() * sizeof(T));
 			return *this;
 		}
 
@@ -187,7 +270,7 @@ namespace fs
 		std::enable_if_t<std::is_pod<T>::value && !std::is_pointer<T>::value, T> read() const
 		{
 			T result;
-			CHECK_ASSERTION(read(result));
+			ASSERT(read(result));
 			return result;
 		}
 
@@ -196,7 +279,7 @@ namespace fs
 		{
 			std::string result;
 			result.resize(size());
-			CHECK_ASSERTION(seek(0) != -1 && read(result));
+			ASSERT(seek(0) == 0 && read(result));
 			return result;
 		}
 
@@ -206,164 +289,67 @@ namespace fs
 		{
 			std::vector<T> result;
 			result.resize(size() / sizeof(T));
-			CHECK_ASSERTION(seek(0) != -1 && read(result));
+			ASSERT(seek(0) == 0 && read(result));
 			return result;
-		}
-	};
-
-	// TODO
-	class file_read_map final
-	{
-		char* m_ptr = nullptr;
-		u64 m_size;
-
-	public:
-		file_read_map() = default;
-
-		file_read_map(file_read_map&& right)
-			: m_ptr(right.m_ptr)
-			, m_size(right.m_size)
-		{
-			right.m_ptr = 0;
-		}
-
-		file_read_map& operator =(file_read_map&& right)
-		{
-			std::swap(m_ptr, right.m_ptr);
-			std::swap(m_size, right.m_size);
-			return *this;
-		}
-
-		file_read_map(const file& f)
-		{
-			reset(f);
-		}
-
-		~file_read_map()
-		{
-			reset();
-		}
-
-		// Open file mapping
-		void reset(const file& f);
-		
-		// Close file mapping
-		void reset();
-
-		// Get pointer
-		operator const char*() const
-		{
-			return m_ptr;
-		}
-	};
-
-	// TODO
-	class file_write_map final
-	{
-		char* m_ptr = nullptr;
-		u64 m_size;
-
-	public:
-		file_write_map() = default;
-
-		file_write_map(file_write_map&& right)
-			: m_ptr(right.m_ptr)
-			, m_size(right.m_size)
-		{
-			right.m_ptr = 0;
-		}
-
-		file_write_map& operator =(file_write_map&& right)
-		{
-			std::swap(m_ptr, right.m_ptr);
-			std::swap(m_size, right.m_size);
-			return *this;
-		}
-
-		file_write_map(const file& f)
-		{
-			reset(f);
-		}
-
-		~file_write_map()
-		{
-			reset();
-		}
-
-		// Open file mapping
-		void reset(const file& f);
-
-		// Close file mapping
-		void reset();
-
-		// Get pointer
-		operator char*() const
-		{
-			return m_ptr;
 		}
 	};
 
 	class dir final
 	{
-		std::unique_ptr<char[]> m_path;
-		std::intptr_t m_dd; // handle (aux)
+		std::unique_ptr<dir_base> m_dir;
 
 	public:
 		dir() = default;
 
-		explicit dir(const std::string& dirname)
+		// Open dir handle
+		explicit dir(const std::string& path)
 		{
-			open(dirname);
+			open(path);
 		}
 
-		dir(dir&& other)
-			: m_dd(other.m_dd)
-			, m_path(std::move(other.m_path))
+		// Import dir handler
+		template<typename T, typename = std::enable_if_t<std::is_base_of<dir_base, T>::value>>
+		dir(std::unique_ptr<T>&& _dir)
+			: m_dir(std::move(_dir))
 		{
 		}
 
-		dir& operator =(dir&& right)
-		{
-			std::swap(m_dd, right.m_dd);
-			std::swap(m_path, right.m_path);
-			return *this;
-		}
-
-		~dir();
-
-		// Check whether the handle is valid (opened directory)
-		bool is_opened() const
-		{
-			return m_path.operator bool();
-		}
+		// Forbid nullptr arg
+		dir(std::nullptr_t) = delete;
 
 		// Check whether the handle is valid (opened directory)
 		explicit operator bool() const
 		{
-			return is_opened();
+			return m_dir.operator bool();
 		}
 
 		// Open specified directory
-		bool open(const std::string& dirname);
+		bool open(const std::string& path);
 		
-		// Close the directory explicitly (destructor automatically closes the directory)
-		void close();
-
-		// Get next directory entry (UTF-8 name and file stat)
-		bool read(std::string& name, stat_t& info);
-
-		bool first(std::string& name, stat_t& info);
-
-		struct entry
+		// Close the directory explicitly, return dir_base
+		std::unique_ptr<dir_base> release()
 		{
-			std::string name;
-			stat_t info;
-		};
+			return std::move(m_dir);
+		}
+
+		// Get next directory entry
+		bool read(dir_entry& out)
+		{
+			Expects(m_dir);
+			return m_dir->read(out);
+		}
+
+		// Reset to the beginning
+		void rewind()
+		{
+			Expects(m_dir);
+			return m_dir->rewind();
+		}
 
 		class iterator
 		{
-			entry m_entry;
 			dir* m_parent;
+			dir_entry m_entry;
 
 		public:
 			enum class mode
@@ -382,20 +368,16 @@ namespace fs
 
 				if (mode_ == mode::from_first)
 				{
-					m_parent->first(m_entry.name, m_entry.info);
-				}
-				else
-				{
-					m_parent->read(m_entry.name, m_entry.info);
+					m_parent->rewind();
 				}
 
-				if (m_entry.name.empty())
+				if (!m_parent->read(m_entry))
 				{
 					m_parent = nullptr;
 				}
 			}
 
-			entry& operator *()
+			dir_entry& operator *()
 			{
 				return m_entry;
 			}
@@ -414,7 +396,7 @@ namespace fs
 
 		iterator begin()
 		{
-			return{ this };
+			return{ m_dir ? this : nullptr };
 		}
 
 		iterator end()
@@ -428,4 +410,69 @@ namespace fs
 
 	// Get executable directory
 	const std::string& get_executable_dir();
+
+	// Delete directory and all its contents recursively
+	void remove_all(const std::string& path);
+
+	// Get size of all files recursively
+	u64 get_dir_size(const std::string& path);
 }
+
+// For compatibility (it's not a good idea)
+class memory_stream final : public fs::file_base
+{
+	u64 m_pos;
+	u64 m_size;
+
+public:
+	const std::add_pointer_t<char> ptr;
+
+	[[deprecated]] memory_stream(void* ptr, u64 max_size)
+		: m_pos(0)
+		, m_size(max_size)
+		, ptr(static_cast<char*>(ptr))
+	{
+	}
+
+	fs::stat_t stat() override
+	{
+		throw std::logic_error("memory_stream doesn't support stat()");
+	}
+
+	bool trunc(u64 length) override
+	{
+		throw std::logic_error("memory_stream doesn't support trunc()");
+	}
+
+	u64 read(void* buffer, u64 count) override
+	{
+		const u64 start = m_pos;
+		const u64 end = seek(count, fs::seek_cur);
+		const u64 read_size = end >= start ? end - start : throw std::logic_error("memory_stream::read(): overflow");
+		std::memmove(buffer, ptr + start, read_size);
+		return read_size;
+	}
+
+	u64 write(const void* buffer, u64 count) override
+	{
+		const u64 start = m_pos;
+		const u64 end = seek(count, fs::seek_cur);
+		const u64 write_size = end >= start ? end - start : throw std::logic_error("memory_stream::write(): overflow");
+		std::memmove(ptr + start, buffer, write_size);
+		return write_size;
+	}
+
+	u64 seek(s64 offset, fs::seek_mode whence) override
+	{
+		return m_pos =
+			whence == fs::seek_set ? std::min<u64>(offset, m_size) :
+			whence == fs::seek_cur ? std::min<u64>(offset + m_pos, m_size) :
+			whence == fs::seek_end ? std::min<u64>(offset + m_size, m_size) :
+			throw std::logic_error("memory_stream::seek(): invalid whence");
+	}
+
+	u64 size() override
+	{
+		return m_size;
+	}
+};

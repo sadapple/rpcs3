@@ -6,7 +6,6 @@
 
 #include "Emu/Cell/PPUThread.h"
 #include "Emu/Cell/SPUThread.h"
-#include "Emu/Event.h"
 #include "sys_sync.h"
 #include "sys_process.h"
 #include "sys_event.h"
@@ -15,33 +14,50 @@ SysCallBase sys_event("sys_event");
 
 extern u64 get_system_time();
 
-lv2_event_queue_t::lv2_event_queue_t(u32 protocol, s32 type, u64 name, u64 key, s32 size)
-	: id(idm::get_last_id())
-	, protocol(protocol)
-	, type(type)
-	, name(name)
-	, key(key)
-	, size(size)
+static ipc_manager<lv2_event_queue_t>& get_ipc_manager()
 {
+	// Use magic static
+	static ipc_manager<lv2_event_queue_t> instance;
+	return instance;
 }
 
-void lv2_event_queue_t::push(lv2_lock_t& lv2_lock, u64 source, u64 data1, u64 data2, u64 data3)
+std::shared_ptr<lv2_event_queue_t> lv2_event_queue_t::make(u32 protocol, s32 type, u64 name, u64 ipc_key, s32 size)
 {
-	CHECK_LV2_LOCK(lv2_lock);
+	auto make_expr = WRAP_EXPR(idm::import<lv2_event_queue_t>(WRAP_EXPR(std::make_shared<lv2_event_queue_t>(protocol, type, name, ipc_key, size))));
 
-	// save event if no waiters
-	if (sq.empty())
+	if (ipc_key == SYS_EVENT_QUEUE_LOCAL)
 	{
-		return events.emplace_back(source, data1, data2, data3);
+		// Not an IPC queue
+		return make_expr();
 	}
 
-	if (events.size())
+	// IPC queue
+	return get_ipc_manager().add(ipc_key, make_expr);
+}
+
+std::shared_ptr<lv2_event_queue_t> lv2_event_queue_t::find(u64 ipc_key)
+{
+	if (ipc_key == SYS_EVENT_QUEUE_LOCAL)
 	{
-		throw EXCEPTION("Unexpected");
+		// Invalid IPC key
+		return{};
+	}
+
+	return get_ipc_manager().get(ipc_key);
+}
+
+void lv2_event_queue_t::push(lv2_lock_t, u64 source, u64 data1, u64 data2, u64 data3)
+{
+	Expects(m_sq.empty() || m_events.empty());
+
+	// save event if no waiters
+	if (m_sq.empty())
+	{
+		return m_events.emplace_back(source, data1, data2, data3);
 	}
 
 	// notify waiter; protocol is ignored in current implementation
-	auto& thread = sq.front();
+	auto& thread = m_sq.front();
 
 	if (type == SYS_PPU_QUEUE && thread->get_type() == CPU_THREAD_PPU)
 	{
@@ -62,15 +78,19 @@ void lv2_event_queue_t::push(lv2_lock_t& lv2_lock, u64 source, u64 data1, u64 da
 	}
 	else
 	{
-		throw EXCEPTION("Unexpected (queue_type=%d, thread_type=%d)", type, thread->get_type());
+		throw fmt::exception("Unexpected (queue.type=%d, thread.type=%d)" HERE, type, thread->get_type());
 	}
 
-	if (!sq.front()->signal())
-	{
-		throw EXCEPTION("Thread already signaled");
-	}
+	ASSERT(m_sq.front()->signal());
+	return m_sq.pop_front();
+}
 
-	return sq.pop_front();
+lv2_event_queue_t::event_type lv2_event_queue_t::pop(lv2_lock_t)
+{
+	Expects(m_events.size());
+	auto result = m_events.front();
+	m_events.pop_front();
+	return result;
 }
 
 s32 sys_event_queue_create(vm::ptr<u32> equeue_id, vm::ptr<sys_event_queue_attribute_t> attr, u64 event_queue_key, s32 size)
@@ -98,14 +118,12 @@ s32 sys_event_queue_create(vm::ptr<u32> equeue_id, vm::ptr<sys_event_queue_attri
 		return CELL_EINVAL;
 	}
 
-	const auto queue = Emu.GetEventManager().MakeEventQueue(event_queue_key, protocol, type, reinterpret_cast<u64&>(attr->name), event_queue_key, size);
-
-	if (!queue)
+	if (!lv2_event_queue_t::make(protocol, type, reinterpret_cast<u64&>(attr->name), event_queue_key, size))
 	{
 		return CELL_EEXIST;
 	}
 
-	*equeue_id = queue->id;
+	*equeue_id = idm::get_last_id();
 	
 	return CELL_OK;
 }
@@ -128,17 +146,16 @@ s32 sys_event_queue_destroy(u32 equeue_id, s32 mode)
 		return CELL_EINVAL;
 	}
 
-	if (!mode && queue->sq.size())
+	if (!mode && queue->waiters())
 	{
 		return CELL_EBUSY;
 	}
 
 	// cleanup
-	Emu.GetEventManager().UnregisterKey(queue->key);
 	idm::remove<lv2_event_queue_t>(equeue_id);
 
 	// signal all threads to return CELL_ECANCELED
-	for (auto& thread : queue->sq)
+	for (auto& thread : queue->thread_queue(lv2_lock))
 	{
 		if (queue->type == SYS_PPU_QUEUE && thread->get_type() == CPU_THREAD_PPU)
 		{
@@ -150,7 +167,7 @@ s32 sys_event_queue_destroy(u32 equeue_id, s32 mode)
 		}
 		else
 		{
-			throw EXCEPTION("Unexpected (queue_type=%d, thread_type=%d)", queue->type, thread->get_type());
+			throw fmt::exception("Unexpected (queue.type=%d, thread.type=%d)" HERE, queue->type, thread->get_type());
 		}
 
 		thread->signal();
@@ -174,7 +191,7 @@ s32 sys_event_queue_tryreceive(u32 equeue_id, vm::ptr<sys_event_t> event_array, 
 
 	if (size < 0)
 	{
-		throw EXCEPTION("Negative size");
+		throw fmt::exception("Negative size (%d)" HERE, size);
 	}
 
 	if (queue->type != SYS_PPU_QUEUE)
@@ -184,13 +201,11 @@ s32 sys_event_queue_tryreceive(u32 equeue_id, vm::ptr<sys_event_t> event_array, 
 
 	s32 count = 0;
 
-	while (queue->sq.empty() && count < size && queue->events.size())
+	while (queue->waiters() == 0 && count < size && queue->events())
 	{
 		auto& dest = event_array[count++];
 
-		std::tie(dest.source, dest.data1, dest.data2, dest.data3) = queue->events.front();
-
-		queue->events.pop_front();
+		std::tie(dest.source, dest.data1, dest.data2, dest.data3) = queue->pop(lv2_lock);
 	}
 
 	*number = count;
@@ -218,13 +233,10 @@ s32 sys_event_queue_receive(PPUThread& ppu, u32 equeue_id, vm::ptr<sys_event_t> 
 		return CELL_EINVAL;
 	}
 
-	if (queue->events.size())
+	if (queue->events())
 	{
 		// event data is returned in registers (dummy_event is not used)
-		std::tie(ppu.GPR[4], ppu.GPR[5], ppu.GPR[6], ppu.GPR[7]) = queue->events.front();
-
-		queue->events.pop_front();
-
+		std::tie(ppu.GPR[4], ppu.GPR[5], ppu.GPR[6], ppu.GPR[7]) = queue->pop(lv2_lock);
 		return CELL_OK;
 	}
 
@@ -232,7 +244,7 @@ s32 sys_event_queue_receive(PPUThread& ppu, u32 equeue_id, vm::ptr<sys_event_t> 
 	ppu.GPR[3] = 0;
 
 	// add waiter; protocol is ignored in current implementation
-	sleep_queue_entry_t waiter(ppu, queue->sq);
+	sleep_entry<CPUThread> waiter(queue->thread_queue(lv2_lock), ppu);
 
 	while (!ppu.unsignal())
 	{
@@ -257,11 +269,7 @@ s32 sys_event_queue_receive(PPUThread& ppu, u32 equeue_id, vm::ptr<sys_event_t> 
 
 	if (ppu.GPR[3])
 	{
-		if (idm::check<lv2_event_queue_t>(equeue_id))
-		{
-			throw EXCEPTION("Unexpected");
-		}
-
+		Ensures(!idm::check<lv2_event_queue_t>(equeue_id));
 		return CELL_ECANCELED;
 	}
 
@@ -282,7 +290,7 @@ s32 sys_event_queue_drain(u32 equeue_id)
 		return CELL_ESRCH;
 	}
 
-	queue->events.clear();
+	queue->clear(lv2_lock);
 
 	return CELL_OK;
 }
@@ -401,7 +409,7 @@ s32 sys_event_port_send(u32 eport_id, u64 data1, u64 data2, u64 data3)
 		return CELL_ENOTCONN;
 	}
 
-	if (queue->events.size() >= queue->size)
+	if (queue->events() >= queue->size)
 	{
 		return CELL_EBUSY;
 	}

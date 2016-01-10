@@ -65,23 +65,57 @@ struct sys_event_t
 	be_t<u64> data3;
 };
 
-struct lv2_event_queue_t
+class lv2_event_queue_t final
 {
-	const u32 id;
+	// Tuple elements: source, data1, data2, data3
+	using event_type = std::tuple<u64, u64, u64, u64>;
+
+	std::deque<event_type> m_events;
+
+	sleep_queue<CPUThread> m_sq;
+
+public:
+	// Try to make an event queue with specified global key
+	static std::shared_ptr<lv2_event_queue_t> make(u32 protocol, s32 type, u64 name, u64 ipc_key, s32 size);
+
+	// Get event queue by its global key
+	static std::shared_ptr<lv2_event_queue_t> find(u64 ipc_key);
+
 	const u32 protocol;
 	const s32 type;
 	const u64 name;
-	const u64 key;
+	const u64 ipc_key;
 	const s32 size;
 
-	// tuple elements: source, data1, data2, data3
-	std::deque<std::tuple<u64, u64, u64, u64>> events;
+	lv2_event_queue_t(u32 protocol, s32 type, u64 name, u64 ipc_key, s32 size)
+		: protocol(protocol)
+		, type(type)
+		, name(name)
+		, ipc_key(ipc_key)
+		, size(size)
+	{
+	}
 
-	sleep_queue_t sq;
+	// Send an event
+	void push(lv2_lock_t, u64 source, u64 data1, u64 data2, u64 data3);
 
-	lv2_event_queue_t(u32 protocol, s32 type, u64 name, u64 key, s32 size);
+	// Receive an event (queue shouldn't be empty)
+	event_type pop(lv2_lock_t);
 
-	void push(lv2_lock_t& lv2_lock, u64 source, u64 data1, u64 data2, u64 data3);
+	// Remove all events
+	void clear(lv2_lock_t)
+	{
+		m_events.clear();
+	}
+
+	// Get event count
+	std::size_t events() const { return m_events.size(); }
+
+	// Get waiter count
+	std::size_t waiters() const { return m_sq.size(); }
+
+	// Get threads (TODO)
+	auto& thread_queue(lv2_lock_t) { return m_sq; }
 };
 
 struct lv2_event_port_t

@@ -1,11 +1,11 @@
 #include "stdafx.h"
 #include "Emu/Memory/Memory.h"
+#include "Emu/FS/VFS.h"
 #include "Emu/System.h"
 #include "Emu/SysCalls/Modules.h"
 
 #include "Emu/Cell/RawSPUThread.h"
 #include "Emu/SysCalls/lv2/sys_spu.h"
-#include "Emu/FS/vfsFile.h"
 #include "Crypto/unself.h"
 #include "sysPrxForUser.h"
 
@@ -30,17 +30,38 @@ s32 sys_spu_elf_get_segments(u32 elf_img, vm::ptr<sys_spu_segment> segments, s32
 	return CELL_OK;
 }
 
-s32 sys_spu_image_import(vm::ptr<sys_spu_image> img, u32 src, u32 type)
+s32 sys_spu_image_import(vm::ptr<sys_spu_image_t> img, u32 src, u32 type)
 {
 	sysPrxForUser.warning("sys_spu_image_import(img=*0x%x, src=0x%x, type=%d)", img, src, type);
 
-	return spu_image_import(*img, src, type);
+	u32 entry, offset = LoadSpuImage(std::make_unique<memory_stream>(vm::base(src), 0x10000000), entry);
+
+	img->type = SYS_SPU_IMAGE_TYPE_USER;
+	img->entry_point = entry;
+	img->segs.set(offset); // TODO: writing actual segment info
+	img->nsegs = 1; // wrong value
+
+	return CELL_OK;
 }
 
-s32 sys_spu_image_close(vm::ptr<sys_spu_image> img)
+s32 sys_spu_image_close(vm::ptr<sys_spu_image_t> img)
 {
-	sysPrxForUser.todo("sys_spu_image_close(img=*0x%x)", img);
+	sysPrxForUser.warning("sys_spu_image_close(img=*0x%x)", img);
 
+	if (img->type == SYS_SPU_IMAGE_TYPE_USER)
+	{
+		//_sys_free(img->segs.addr());
+	}
+	else if (img->type == SYS_SPU_IMAGE_TYPE_KERNEL)
+	{
+		//return syscall_158(img);
+	}
+	else
+	{
+		return CELL_EINVAL;
+	}
+
+	ASSERT(vm::dealloc(img->segs.addr(), vm::main)); // Current rough implementation
 	return CELL_OK;
 }
 
@@ -49,10 +70,10 @@ s32 sys_raw_spu_load(s32 id, vm::cptr<char> path, vm::ptr<u32> entry)
 	sysPrxForUser.warning("sys_raw_spu_load(id=%d, path=*0x%x, entry=*0x%x)", id, path, entry);
 	sysPrxForUser.warning("*** path = '%s'", path.get_ptr());
 
-	vfsFile f(path.get_ptr());
-	if (!f.IsOpened())
+	const fs::file f(vfs::get(path.get_ptr()));
+	if (!f)
 	{
-		sysPrxForUser.error("sys_raw_spu_load error: '%s' not found!", path.get_ptr());
+		sysPrxForUser.error("sys_raw_spu_load() error: '%s' not found!", path.get_ptr());
 		return CELL_ENOENT;
 	}
 
@@ -61,12 +82,10 @@ s32 sys_raw_spu_load(s32 id, vm::cptr<char> path, vm::ptr<u32> entry)
 
 	if (hdr.CheckMagic())
 	{
-		sysPrxForUser.error("sys_raw_spu_load error: '%s' is encrypted! Decrypt SELF and try again.", path.get_ptr());
-		Emu.Pause();
-		return CELL_ENOENT;
+		throw fmt::exception("sys_raw_spu_load() error: '%s' is encrypted! Try to decrypt it manually and try again.", path.get_ptr());
 	}
 
-	f.Seek(0);
+	f.seek(0);
 
 	u32 _entry;
 	LoadSpuImage(f, _entry, RAW_SPU_BASE_ADDR + RAW_SPU_OFFSET * id);
@@ -76,7 +95,7 @@ s32 sys_raw_spu_load(s32 id, vm::cptr<char> path, vm::ptr<u32> entry)
 	return CELL_OK;
 }
 
-s32 sys_raw_spu_image_load(PPUThread& ppu, s32 id, vm::ptr<sys_spu_image> img)
+s32 sys_raw_spu_image_load(PPUThread& ppu, s32 id, vm::ptr<sys_spu_image_t> img)
 {
 	sysPrxForUser.warning("sys_raw_spu_image_load(id=%d, img=*0x%x)", id, img);
 
@@ -84,7 +103,7 @@ s32 sys_raw_spu_image_load(PPUThread& ppu, s32 id, vm::ptr<sys_spu_image> img)
 
 	const auto stamp0 = get_system_time();
 
-	std::memcpy(vm::base(RAW_SPU_BASE_ADDR + RAW_SPU_OFFSET * id), vm::base(img->addr), 256 * 1024);
+	std::memcpy(vm::base(RAW_SPU_BASE_ADDR + RAW_SPU_OFFSET * id), img->segs.get_ptr(), 256 * 1024);
 
 	const auto stamp1 = get_system_time();
 

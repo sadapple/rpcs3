@@ -1,7 +1,7 @@
 #pragma once
-#include "Loader.h"
 
-struct vfsStream;
+#include "Loader.h"
+#include "Emu/Memory/Memory.h"
 
 namespace loader
 {
@@ -40,8 +40,8 @@ namespace loader
 				be_t<u32> p_type;
 				be_t<u32> p_flags;
 				be_t<u64> p_offset;
-				_ptr_base<void, be_t<u64>> p_vaddr;
-				_ptr_base<void, be_t<u64>> p_paddr;
+				vm::_ptr_base<void, be_t<u64>> p_vaddr;
+				vm::_ptr_base<void, be_t<u64>> p_paddr;
 				be_t<u64> p_filesz;
 				be_t<u64> p_memsz;
 				be_t<u64> p_align;
@@ -52,7 +52,7 @@ namespace loader
 				be_t<u32> sh_name;
 				be_t<u32> sh_type;
 				be_t<u64> sh_flags;
-				_ptr_base<void, be_t<u64>> sh_addr;
+				vm::_ptr_base<void, be_t<u64>> sh_addr;
 				be_t<u64> sh_offset;
 				be_t<u64> sh_size;
 				be_t<u32> sh_link;
@@ -120,10 +120,10 @@ namespace loader
 
 			struct sprx_segment_info
 			{
-				_ptr_base<void> begin;
+				vm::_ptr_base<void> begin;
 				u32 size;
 				u32 size_file;
-				_ptr_base<void> initial_addr;
+				vm::_ptr_base<void> initial_addr;
 				std::vector<sprx_module_info> modules;
 			};
 
@@ -152,7 +152,7 @@ namespace loader
 		public:
 			virtual ~elf64() = default;
 
-			error_code init(vfsStream& stream) override;
+			error_code init(const fs::file& stream) override;
 			error_code load() override;
 			error_code alloc_memory(u64 offset);
 			error_code load_data(u64 offset);

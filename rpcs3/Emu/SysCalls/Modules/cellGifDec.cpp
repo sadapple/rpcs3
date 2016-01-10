@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "Emu/Memory/Memory.h"
+#include "Emu/FS/VFS.h"
 #include "Emu/System.h"
 #include "Emu/IdManager.h"
 #include "Emu/SysCalls/Modules.h"
@@ -9,10 +10,7 @@ extern "C"
 #include "stblib/stb_image.h"
 }
 
-#include "Emu/FS/VFS.h"
-#include "Emu/FS/vfsFileBase.h"
 #include "Emu/SysCalls/lv2/sys_fs.h"
-
 #include "cellGifDec.h"
 
 extern Module<> cellGifDec;
@@ -63,11 +61,11 @@ s32 cellGifDecOpen(PMainHandle mainHandle, PPSubHandle subHandle, PSrc src, POpe
 	case CELL_GIFDEC_FILE:
 	{
 		// Get file descriptor and size
-		std::shared_ptr<vfsStream> file_s(Emu.GetVFS().OpenFile(src->fileName.get_ptr(), fom::read));
+		fs::file file_s(vfs::get(src->fileName.get_ptr()));
 		if (!file_s) return CELL_GIFDEC_ERROR_OPEN_FILE;
 
-		current_subHandle.fd = idm::make<lv2_file_t>(file_s, 0, 0);
-		current_subHandle.fileSize = file_s->GetSize();
+		current_subHandle.fileSize = file_s.size();
+		current_subHandle.fd = idm::make<lv2_file_t>(std::move(file_s), 0, 0);
 		break;
 	}
 	}
@@ -104,8 +102,8 @@ s32 cellGifDecReadHeader(PMainHandle mainHandle, PSubHandle subHandle, PInfo inf
 	case CELL_GIFDEC_FILE:
 	{
 		auto file = idm::get<lv2_file_t>(fd);
-		file->file->Seek(0);
-		file->file->Read(buffer, sizeof(buffer));
+		file->file.seek(0);
+		file->file.read(buffer, sizeof(buffer));
 		break;
 	}
 	}
@@ -188,8 +186,8 @@ s32 cellGifDecDecodeData(PMainHandle mainHandle, PSubHandle subHandle, vm::ptr<u
 	case CELL_GIFDEC_FILE:
 	{
 		auto file = idm::get<lv2_file_t>(fd);
-		file->file->Seek(0);
-		file->file->Read(gif.get(), fileSize);
+		file->file.seek(0);
+		file->file.read(gif.get(), fileSize);
 		break;
 	}
 	}

@@ -1,9 +1,10 @@
 #include "stdafx.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/System.h"
+#include "Emu/IdManager.h"
 #include "Emu/SysCalls/Modules.h"
 
-#include "Emu/Io/Keyboard.h"
+#include "Emu/Io/KeyboardHandler.h"
 #include "cellKb.h"
 
 extern Module<> sys_io;
@@ -12,24 +13,26 @@ s32 cellKbInit(u32 max_connect)
 {
 	sys_io.warning("cellKbInit(max_connect=%d)", max_connect);
 
-	if (Emu.GetKeyboardManager().IsInited())
-		return CELL_KB_ERROR_ALREADY_INITIALIZED;
 	if (max_connect > 7)
 		return CELL_KB_ERROR_INVALID_PARAMETER;
 
-	Emu.GetKeyboardManager().Init(max_connect);
+	const auto handler = fxm::import<KeyboardHandlerBase>(PURE_EXPR(Emu.GetCallbacks().get_kb_handler()));
+
+	if (!handler)
+		return CELL_KB_ERROR_ALREADY_INITIALIZED;
+
+	handler->Init(max_connect);
 
 	return CELL_OK;
 }
 
 s32 cellKbEnd()
 {
-	sys_io.trace("cellKbEnd()");
+	sys_io.notice("cellKbEnd()");
 
-	if (!Emu.GetKeyboardManager().IsInited())
+	if (!fxm::remove<KeyboardHandlerBase>())
 		return CELL_KB_ERROR_UNINITIALIZED;
 
-	Emu.GetKeyboardManager().Close();
 	return CELL_OK;
 }
 
@@ -37,10 +40,12 @@ s32 cellKbClearBuf(u32 port_no)
 {
 	sys_io.trace("cellKbClearBuf(port_no=%d)", port_no);
 
-	if (!Emu.GetKeyboardManager().IsInited())
+	const auto handler = fxm::get<KeyboardHandlerBase>();
+
+	if (!handler)
 		return CELL_KB_ERROR_UNINITIALIZED;
 
-	if (port_no >= Emu.GetKeyboardManager().GetKeyboards().size())
+	if (port_no >= handler->GetKeyboards().size())
 		return CELL_KB_ERROR_INVALID_PARAMETER;
 
 	//?
@@ -98,10 +103,12 @@ s32 cellKbGetInfo(vm::ptr<CellKbInfo> info)
 {
 	sys_io.trace("cellKbGetInfo(info=*0x%x)", info);
 
-	if (!Emu.GetKeyboardManager().IsInited())
+	const auto handler = fxm::get<KeyboardHandlerBase>();
+
+	if (!handler)
 		return CELL_KB_ERROR_UNINITIALIZED;
 
-	const KbInfo& current_info = Emu.GetKeyboardManager().GetInfo();
+	const KbInfo& current_info = handler->GetInfo();
 	info->max_connect = current_info.max_connect;
 	info->now_connect = current_info.now_connect;
 	info->info = current_info.info;
@@ -118,14 +125,17 @@ s32 cellKbRead(u32 port_no, vm::ptr<CellKbData> data)
 {
 	sys_io.trace("cellKbRead(port_no=%d, data=*0x%x)", port_no, data);
 
-	const std::vector<Keyboard>& keyboards = Emu.GetKeyboardManager().GetKeyboards();
-	if (!Emu.GetKeyboardManager().IsInited())
+	const auto handler = fxm::get<KeyboardHandlerBase>();
+
+	if (!handler)
 		return CELL_KB_ERROR_UNINITIALIZED;
+
+	const std::vector<Keyboard>& keyboards = handler->GetKeyboards();
 
 	if (port_no >= keyboards.size())
 		return CELL_KB_ERROR_INVALID_PARAMETER;
 
-	KbData& current_data = Emu.GetKeyboardManager().GetData(port_no);
+	KbData& current_data = handler->GetData(port_no);
 	data->led = current_data.led;
 	data->mkey = current_data.mkey;
 	data->len = std::min((u32)current_data.len, CELL_KB_MAX_KEYCODES);
@@ -144,10 +154,12 @@ s32 cellKbSetCodeType(u32 port_no, u32 type)
 {
 	sys_io.trace("cellKbSetCodeType(port_no=%d,type=%d)", port_no, type);
 
-	if (!Emu.GetKeyboardManager().IsInited())
+	const auto handler = fxm::get<KeyboardHandlerBase>();
+
+	if (!handler)
 		return CELL_KB_ERROR_UNINITIALIZED;
 	
-	KbConfig& current_config = Emu.GetKeyboardManager().GetConfig(port_no);
+	KbConfig& current_config = handler->GetConfig(port_no);
 	current_config.code_type = type;
 	return CELL_OK;
 }
@@ -162,10 +174,12 @@ s32 cellKbSetReadMode(u32 port_no, u32 rmode)
 {
 	sys_io.trace("cellKbSetReadMode(port_no=%d,rmode=%d)", port_no, rmode);
 
-	if (!Emu.GetKeyboardManager().IsInited())
+	const auto handler = fxm::get<KeyboardHandlerBase>();
+
+	if (!handler)
 		return CELL_KB_ERROR_UNINITIALIZED;
 	
-	KbConfig& current_config = Emu.GetKeyboardManager().GetConfig(port_no);
+	KbConfig& current_config = handler->GetConfig(port_no);
 	current_config.read_mode = rmode;
 
 	return CELL_OK;
@@ -175,10 +189,12 @@ s32 cellKbGetConfiguration(u32 port_no, vm::ptr<CellKbConfig> config)
 {
 	sys_io.trace("cellKbGetConfiguration(port_no=%d, config=*0x%x)", port_no, config);
 
-	if (!Emu.GetKeyboardManager().IsInited())
+	const auto handler = fxm::get<KeyboardHandlerBase>();
+
+	if (!handler)
 		return CELL_KB_ERROR_UNINITIALIZED;
 
-	const KbConfig& current_config = Emu.GetKeyboardManager().GetConfig(port_no);
+	const KbConfig& current_config = handler->GetConfig(port_no);
 	config->arrange = current_config.arrange;
 	config->read_mode = current_config.read_mode;
 	config->code_type = current_config.code_type;

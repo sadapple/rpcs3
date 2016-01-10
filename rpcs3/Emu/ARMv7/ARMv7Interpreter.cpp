@@ -106,46 +106,46 @@ namespace ARMv7_instrs
 
 	u32 LSL_C(u32 x, s32 shift, bool& carry_out)
 	{
-		assert(shift > 0);
+		Expects(shift > 0);
 		carry_out = shift <= 32 ? (x & (1 << (32 - shift))) != 0 : false;
 		return shift < 32 ? x << shift : 0;
 	}
 
 	u32 LSL_(u32 x, s32 shift)
 	{
-		assert(shift >= 0);
+		Expects(shift >= 0);
 		return shift < 32 ? x << shift : 0;
 	}
 
 	u32 LSR_C(u32 x, s32 shift, bool& carry_out)
 	{
-		assert(shift > 0);
+		Expects(shift > 0);
 		carry_out = shift <= 32 ? (x & (1 << (shift - 1))) != 0 : false;
 		return shift < 32 ? x >> shift : 0;
 	}
 
 	u32 LSR_(u32 x, s32 shift)
 	{
-		assert(shift >= 0);
+		Expects(shift >= 0);
 		return shift < 32 ? x >> shift : 0;
 	}
 
 	s32 ASR_C(s32 x, s32 shift, bool& carry_out)
 	{
-		assert(shift > 0);
+		Expects(shift > 0);
 		carry_out = shift <= 32 ? (x & (1 << (shift - 1))) != 0 : x < 0;
 		return shift < 32 ? x >> shift : x >> 31;
 	}
 
 	s32 ASR_(s32 x, s32 shift)
 	{
-		assert(shift >= 0);
+		Expects(shift >= 0);
 		return shift < 32 ? x >> shift : x >> 31;
 	}
 
 	u32 ROR_C(u32 x, s32 shift, bool& carry_out)
 	{
-		assert(shift);
+		Expects(shift);
 		const u32 result = x >> shift | x << (32 - shift);
 		carry_out = (result >> 31) != 0;
 		return result;
@@ -169,7 +169,7 @@ namespace ARMv7_instrs
 
 	u32 Shift_C(u32 value, u32 type, s32 amount, bool carry_in, bool& carry_out)
 	{
-		assert(type != SRType_RRX || amount == 1);
+		Expects(type != SRType_RRX || amount == 1);
 
 		if (amount)
 		{
@@ -389,8 +389,8 @@ namespace ARMv7_instrs
 
 	std::string fmt_shift(u32 type, u32 amount)
 	{
-		assert(type != SRType_RRX || amount == 1);
-		assert(amount <= 32);
+		Expects(type != SRType_RRX || amount == 1);
+		Expects(amount <= 32);
 
 		if (amount)
 		{

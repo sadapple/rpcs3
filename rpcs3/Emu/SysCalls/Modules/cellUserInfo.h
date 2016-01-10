@@ -21,7 +21,7 @@ enum CellUserInfoParamSize
 	CELL_USERINFO_USERNAME_SIZE = 64,
 };
 
-enum  CellUserInfoListType
+enum CellUserInfoListType
 {
 	CELL_USERINFO_LISTTYPE_ALL       = 0,
 	CELL_USERINFO_LISTTYPE_NOCURRENT = 1,
@@ -37,7 +37,7 @@ enum
 struct CellUserInfoUserStat
 {
 	be_t<u32> id;
-	u8 name[CELL_USERINFO_USERNAME_SIZE];
+	char name[CELL_USERINFO_USERNAME_SIZE];
 };
 
 struct CellUserInfoUserList
@@ -47,17 +47,17 @@ struct CellUserInfoUserList
 
 struct CellUserInfoListSet
 {
-	be_t<u32> title_addr; // (char*)
-	be_t<u32> focus;
+	vm::bptr<char> title;
+	be_t<u32> focus; // id
 	be_t<u32> fixedListNum;
-	vm::ptr<CellUserInfoUserList> fixedList;
-	be_t<u32> reserved_addr; // (void*)
+	vm::bptr<CellUserInfoUserList> fixedList;
+	vm::bptr<void> reserved;
 };
 
 struct CellUserInfoTypeSet
 {
-	be_t<u32> title_addr; // (char*)
-	be_t<u32> focus;
-	CellUserInfoListType type;
-	be_t<u32> reserved_addr; // (void*)
+	vm::bptr<char> title;
+	be_t<u32> focus; // id
+	be_t<u32> type; // CellUserInfoListType
+	vm::bptr<void> reserved;
 };

@@ -92,7 +92,7 @@ s32 sys_semaphore_wait(PPUThread& ppu, u32 sem_id, u64 timeout)
 	}
 
 	// add waiter; protocol is ignored in current implementation
-	sleep_queue_entry_t waiter(ppu, sem->sq);
+	sleep_entry<CPUThread> waiter(sem->sq, ppu);
 
 	while (!ppu.unsignal())
 	{

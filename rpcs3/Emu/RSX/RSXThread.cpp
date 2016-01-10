@@ -1,8 +1,7 @@
 #include "stdafx.h"
+#include "Utilities/Registry.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/System.h"
-#include "Emu/state.h"
-#include "Emu/RSX/GSManager.h"
 #include "RSXThread.h"
 
 #include "Emu/SysCalls/Callback.h"
@@ -13,6 +12,28 @@
 #include "rsx_methods.h"
 
 #define CMD_DEBUG 0
+
+const extern cfg::bool_entry g_cfg_rsx_write_color_buffers("rsx/Write Color Buffers", true);
+const extern cfg::bool_entry g_cfg_rsx_write_depth_buffer("rsx/Write Depth Buffer", true);
+const extern cfg::bool_entry g_cfg_rsx_read_color_buffers("rsx/Read Color Buffers", true);
+const extern cfg::bool_entry g_cfg_rsx_read_depth_buffer("rsx/Read Depth Buffer", true);
+const extern cfg::bool_entry g_cfg_rsx_log_programs("rsx/Log shader programs");
+const extern cfg::bool_entry g_cfg_rsx_vsync("rsx/VSync");
+const extern cfg::bool_entry g_cfg_rsx_3dtv("rsx/3D Monitor");
+const extern cfg::bool_entry g_cfg_rsx_debug_output("rsx/Debug Output");
+const extern cfg::bool_entry g_cfg_rsx_overlay("rsx/Debug overlay");
+
+template<>
+enum_map<rsx::shader_language> make_enum_map()
+{
+	using rsx::shader_language;
+
+	return
+	{
+		{ shader_language::glsl, "glsl" },
+		{ shader_language::hlsl, "hlsl" },
+	};
+}
 
 bool user_asked_for_frame_capture = false;
 frame_capture_data frame_debug;
@@ -28,14 +49,14 @@ namespace rsx
 
 	void shaders_cache::load(const std::string &path, shader_language lang)
 	{
-		std::string lang_name = convert::to<std::string>(lang);
+		const std::string& lang_name = get_enum_map<shader_language>().map.at(lang);
 
 		auto extract_hash = [](const std::string &string)
 		{
 			return std::stoull(string.substr(0, string.find('.')).c_str(), 0, 16);
 		};
 
-		for (const fs::dir::entry &entry : fs::dir{ path })
+		for (const auto& entry : fs::dir(path))
 		{
 			if (entry.name == "." || entry.name == "..")
 				continue;
@@ -106,7 +127,7 @@ namespace rsx
 				throw EXCEPTION("GetAddress(offset=0x%x, location=0x%x): RSXIO memory not mapped", offset, location);
 			}
 
-			//if (Emu.GetGSManager().GetRender().strict_ordering[offset >> 20])
+			//if (fxm::get<GSRender>()->strict_ordering[offset >> 20])
 			//{
 			//	_mm_mfence(); // probably doesn't have any effect on current implementation
 			//}
@@ -136,7 +157,7 @@ namespace rsx
 			case 3:
 				return sizeof(u16) * 4;
 			}
-			throw new EXCEPTION("Wrong vector size");
+			throw EXCEPTION("Wrong vector size");
 		case vertex_base_type::f:     return sizeof(f32) * size;
 		case vertex_base_type::sf:
 			switch (size)
@@ -148,7 +169,7 @@ namespace rsx
 			case 3:
 				return sizeof(f16) * 4;
 			}
-			throw new EXCEPTION("Wrong vector size");
+			throw EXCEPTION("Wrong vector size");
 		case vertex_base_type::ub:
 			switch (size)
 			{
@@ -159,13 +180,13 @@ namespace rsx
 			case 3:
 				return sizeof(u8) * 4;
 			}
-			throw new EXCEPTION("Wrong vector size");
+			throw EXCEPTION("Wrong vector size");
 		case vertex_base_type::s32k:  return sizeof(u32) * size;
 		case vertex_base_type::cmp:   return sizeof(u16) * 4;
 		case vertex_base_type::ub256: return sizeof(u8) * 4;
 
 		default:
-			throw new EXCEPTION("RSXVertexData::GetTypeSize: Bad vertex data type (%d)!", type);
+			throw EXCEPTION("RSXVertexData::GetTypeSize: Bad vertex data type (%d)!", type);
 			return 0;
 		}
 	}
@@ -420,10 +441,7 @@ namespace rsx
 				u32 reg = cmd & CELL_GCM_METHOD_FLAG_NON_INCREMENT ? first_cmd : first_cmd + i;
 				u32 value = args[i];
 
-				if (rpcs3::config.misc.log.rsx_logging.value())
-				{
-					LOG_NOTICE(RSX, "%s(0x%x) = 0x%x", get_method_name(reg).c_str(), reg, value);
-				}
+				LOG_TRACE(RSX, "%s(0x%x) = 0x%x", get_method_name(reg).c_str(), reg, value);
 
 				method_registers[reg] = value;
 				if (capture_current_frame)

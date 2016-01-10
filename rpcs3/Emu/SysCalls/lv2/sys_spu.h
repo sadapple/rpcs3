@@ -107,15 +107,11 @@ enum : u32
 	SYS_SPU_IMAGE_TYPE_KERNEL = 1,
 };
 
-struct sys_spu_image
+struct sys_spu_image_t
 {
 	be_t<u32> type; // user, kernel
 	be_t<u32> entry_point;
-	union
-	{
-		be_t<u32> addr; // temporarily used as offset of the whole LS image (should be removed)
-		vm::bptr<sys_spu_segment> segs;
-	};
+	vm::bptr<sys_spu_segment> segs;
 	be_t<s32> nsegs;
 };
 
@@ -151,7 +147,7 @@ struct lv2_spu_group_t
 	const u32 ct; // Memory Container Id
 
 	std::array<std::shared_ptr<SPUThread>, 256> threads; // SPU Threads
-	std::array<vm::ptr<sys_spu_image>, 256> images; // SPU Images
+	std::array<vm::ptr<sys_spu_image_t>, 256> images; // SPU Images
 	std::array<spu_arg_t, 256> args; // SPU Thread Arguments
 
 	s32 prio; // SPU Thread Group Priority
@@ -177,30 +173,24 @@ struct lv2_spu_group_t
 	{
 	}
 
-	void send_run_event(lv2_lock_t& lv2_lock, u64 data1, u64 data2, u64 data3)
+	void send_run_event(lv2_lock_t lv2_lock, u64 data1, u64 data2, u64 data3)
 	{
-		CHECK_LV2_LOCK(lv2_lock);
-
 		if (const auto queue = ep_run.lock())
 		{
 			queue->push(lv2_lock, SYS_SPU_THREAD_GROUP_EVENT_RUN_KEY, data1, data2, data3);
 		}
 	}
 
-	void send_exception_event(lv2_lock_t& lv2_lock, u64 data1, u64 data2, u64 data3)
+	void send_exception_event(lv2_lock_t lv2_lock, u64 data1, u64 data2, u64 data3)
 	{
-		CHECK_LV2_LOCK(lv2_lock);
-
 		if (const auto queue = ep_exception.lock())
 		{
 			queue->push(lv2_lock, SYS_SPU_THREAD_GROUP_EVENT_EXCEPTION_KEY, data1, data2, data3);
 		}
 	}
 
-	void send_sysmodule_event(lv2_lock_t& lv2_lock, u64 data1, u64 data2, u64 data3)
+	void send_sysmodule_event(lv2_lock_t lv2_lock, u64 data1, u64 data2, u64 data3)
 	{
-		CHECK_LV2_LOCK(lv2_lock);
-
 		if (const auto queue = ep_sysmodule.lock())
 		{
 			queue->push(lv2_lock, SYS_SPU_THREAD_GROUP_EVENT_SYSTEM_MODULE_KEY, data1, data2, data3);
@@ -208,20 +198,17 @@ struct lv2_spu_group_t
 	}
 };
 
-struct vfsStream;
 class PPUThread;
 
-void LoadSpuImage(vfsStream& stream, u32& spu_ep, u32 addr);
-u32 LoadSpuImage(vfsStream& stream, u32& spu_ep);
-
 // Aux
-s32 spu_image_import(sys_spu_image& img, u32 src, u32 type);
+void LoadSpuImage(const fs::file& stream, u32& spu_ep, u32 addr);
+u32 LoadSpuImage(const fs::file& stream, u32& spu_ep);
 
 // SysCalls
 s32 sys_spu_initialize(u32 max_usable_spu, u32 max_raw_spu);
-s32 sys_spu_image_open(vm::ptr<sys_spu_image> img, vm::cptr<char> path);
-s32 sys_spu_image_close(vm::ptr<sys_spu_image> img);
-s32 sys_spu_thread_initialize(vm::ptr<u32> thread, u32 group, u32 spu_num, vm::ptr<sys_spu_image> img, vm::ptr<sys_spu_thread_attribute> attr, vm::ptr<sys_spu_thread_argument> arg);
+s32 sys_spu_image_open(vm::ptr<sys_spu_image_t> img, vm::cptr<char> path);
+s32 sys_spu_image_close(vm::ptr<sys_spu_image_t> img);
+s32 sys_spu_thread_initialize(vm::ptr<u32> thread, u32 group, u32 spu_num, vm::ptr<sys_spu_image_t> img, vm::ptr<sys_spu_thread_attribute> attr, vm::ptr<sys_spu_thread_argument> arg);
 s32 sys_spu_thread_set_argument(u32 id, vm::ptr<sys_spu_thread_argument> arg);
 s32 sys_spu_thread_group_create(vm::ptr<u32> id, u32 num, s32 prio, vm::ptr<sys_spu_thread_group_attribute> attr);
 s32 sys_spu_thread_group_destroy(u32 id);

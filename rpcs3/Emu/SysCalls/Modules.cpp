@@ -1,7 +1,7 @@
 #include "stdafx.h"
+#include "Utilities/AutoPause.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/System.h"
-#include "Emu/state.h"
 #include "Emu/SysCalls/Modules.h"
 #include "Emu/SysCalls/SysCalls.h"
 #include "Crypto/sha1.h"
@@ -118,7 +118,7 @@ void execute_ppu_func_by_index(PPUThread& ppu, u32 index)
 		// save RTOC if necessary
 		if (index & EIF_SAVE_RTOC)
 		{
-			vm::write64(VM_CAST(ppu.GPR[1] + 0x28), ppu.GPR[2]);
+			vm::write64(vm::cast(ppu.GPR[1] + 0x28, HERE), ppu.GPR[2]);
 		}
 
 		// save old syscall/NID value
@@ -152,6 +152,8 @@ void execute_ppu_func_by_index(PPUThread& ppu, u32 index)
 				// CPU.LR = CPU.PC + 4;
 			}
 
+			debug::autopause::pause_function(func->id);
+
 			const auto data = vm::_ptr<u32>(func->lle_func.addr());
 			ppu.PC = data[0] - 4;
 			ppu.GPR[2] = data[1]; // set rtoc
@@ -162,6 +164,8 @@ void execute_ppu_func_by_index(PPUThread& ppu, u32 index)
 		// change current syscall/NID value
 		ppu.hle_code = func->id;
 
+		debug::autopause::pause_function(func->id);
+
 		if (func->lle_func && !(func->flags & MFF_FORCED_HLE))
 		{
 			// call LLE function if available
@@ -171,7 +175,7 @@ void execute_ppu_func_by_index(PPUThread& ppu, u32 index)
 			const u32 rtoc = data[1];
 
 			LOG_TRACE(HLE, "LLE function called: %s", get_ps3_function_name(func->id));
-			
+
 			ppu.fast_call(pc, rtoc);
 
 			LOG_TRACE(HLE, "LLE function finished: %s -> 0x%llx", get_ps3_function_name(func->id), ppu.GPR[3]);
@@ -193,7 +197,7 @@ void execute_ppu_func_by_index(PPUThread& ppu, u32 index)
 		if (index & EIF_PERFORM_BLR)
 		{
 			// return if necessary
-			ppu.PC = VM_CAST(ppu.LR & ~3) - 4;
+			ppu.PC = vm::cast(ppu.LR & ~3, HERE) - 4;
 		}
 
 		// execute module-specific error check

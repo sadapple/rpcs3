@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "Emu/Memory/Memory.h"
+#include "Emu/FS/VFS.h"
 #include "Emu/System.h"
 #include "Emu/IdManager.h"
 #include "Emu/SysCalls/Modules.h"
@@ -9,10 +10,7 @@ extern "C"
 #include "stblib/stb_image.h"
 }
 
-#include "Emu/FS/VFS.h"
-#include "Emu/FS/vfsFileBase.h"
 #include "Emu/SysCalls/lv2/sys_fs.h"
-
 #include "cellPngDec.h"
 
 extern Module<> cellPngDec;
@@ -98,11 +96,11 @@ s32 pngDecOpen(PMainHandle dec, PPSubHandle subHandle, PSrc src, POpenInfo openI
 	case CELL_PNGDEC_FILE:
 	{
 		// Get file descriptor and size
-		std::shared_ptr<vfsStream> file_s(Emu.GetVFS().OpenFile(src->fileName.get_ptr(), fom::read));
+		fs::file file_s(vfs::get(src->fileName.get_ptr()));
 		if (!file_s) return CELL_PNGDEC_ERROR_OPEN_FILE;
 
-		stream->fd = idm::make<lv2_file_t>(file_s, 0, 0);
-		stream->fileSize = file_s->GetSize();
+		stream->fileSize = file_s.size();
+		stream->fd = idm::make<lv2_file_t>(std::move(file_s), 0, 0);
 		break;
 	}
 	}
@@ -158,8 +156,8 @@ s32 pngReadHeader(PSubHandle stream, vm::ptr<CellPngDecInfo> info, PExtInfo extI
 	case CELL_PNGDEC_FILE:
 	{
 		auto file = idm::get<lv2_file_t>(stream->fd);
-		file->file->Seek(0);
-		file->file->Read(buffer, sizeof(buffer));
+		file->file.seek(0);
+		file->file.read(buffer, sizeof(buffer));
 		break;
 	}
 	}
@@ -259,8 +257,8 @@ s32 pngDecodeData(PSubHandle stream, vm::ptr<u8> data, PDataCtrlParam dataCtrlPa
 	case CELL_PNGDEC_FILE:
 	{
 		auto file = idm::get<lv2_file_t>(stream->fd);
-		file->file->Seek(0);
-		file->file->Read(png.get(), fileSize);
+		file->file.seek(0);
+		file->file.read(png.get(), fileSize);
 		break;
 	}
 	}

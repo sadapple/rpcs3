@@ -12,10 +12,8 @@ SysCallBase sys_lwcond("sys_lwcond");
 
 extern u64 get_system_time();
 
-void lv2_lwcond_t::notify(lv2_lock_t & lv2_lock, sleep_queue_t::value_type& thread, const std::shared_ptr<lv2_lwmutex_t>& mutex, bool mode2)
+void lv2_lwcond_t::notify(lv2_lock_t, CPUThread* thread, const std::shared_ptr<lv2_lwmutex_t>& mutex, bool mode2)
 {
-	CHECK_LV2_LOCK(lv2_lock);
-
 	auto& ppu = static_cast<PPUThread&>(*thread);
 
 	ppu.GPR[3] = mode2;  // set to return CELL_EBUSY
@@ -92,7 +90,7 @@ s32 _sys_lwcond_signal(u32 lwcond_id, u32 lwmutex_id, u32 ppu_thread_id, u32 mod
 	// mode 3: lightweight mutex was forcefully owned by the calling thread
 
 	// pick waiter; protocol is ignored in current implementation
-	const auto found = !~ppu_thread_id ? cond->sq.begin() : std::find_if(cond->sq.begin(), cond->sq.end(), [=](sleep_queue_t::value_type& thread)
+	const auto found = !~ppu_thread_id ? cond->sq.begin() : std::find_if(cond->sq.begin(), cond->sq.end(), [=](CPUThread* thread)
 	{
 		return thread->get_id() == ppu_thread_id;
 	});
@@ -177,10 +175,10 @@ s32 _sys_lwcond_queue_wait(PPUThread& ppu, u32 lwcond_id, u32 lwmutex_id, u64 ti
 	mutex->unlock(lv2_lock);
 
 	// add waiter; protocol is ignored in current implementation
-	sleep_queue_entry_t waiter(ppu, cond->sq);
+	sleep_entry<CPUThread> waiter(cond->sq, ppu);
 
 	// potential mutex waiter (not added immediately)
-	sleep_queue_entry_t mutex_waiter(ppu, cond->sq, defer_sleep);
+	sleep_entry<CPUThread> mutex_waiter(cond->sq, ppu, defer_sleep);
 
 	while (!ppu.unsignal())
 	{

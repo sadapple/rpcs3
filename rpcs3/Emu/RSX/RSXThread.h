@@ -5,11 +5,9 @@
 #include "RSXVertexProgram.h"
 #include "RSXFragmentProgram.h"
 
-#include <stack>
 #include "Utilities/Semaphore.h"
 #include "Utilities/Thread.h"
 #include "Utilities/Timer.h"
-#include "Utilities/convert.h"
 
 extern u64 get_system_time();
 
@@ -43,44 +41,10 @@ namespace rsx
 	enum class shader_language
 	{
 		glsl,
-		hlsl
+		hlsl,
 	};
 }
 
-namespace convert
-{
-	template<>
-	struct to_impl_t<rsx::shader_language, std::string>
-	{
-		static rsx::shader_language func(const std::string &from)
-		{
-			if (from == "glsl")
-				return rsx::shader_language::glsl;
-
-			if (from == "hlsl")
-				return rsx::shader_language::hlsl;
-
-			throw;
-		}
-	};
-
-	template<>
-	struct to_impl_t<std::string, rsx::shader_language>
-	{
-		static std::string func(rsx::shader_language from)
-		{
-			switch (from)
-			{
-			case rsx::shader_language::glsl:
-				return "glsl";
-			case rsx::shader_language::hlsl:
-				return "hlsl";
-			}
-
-			throw;
-		}
-	};
-}
 namespace rsx
 {
 	namespace limits
@@ -315,6 +279,8 @@ namespace rsx
 		virtual ~thread();
 
 		virtual void on_task() override;
+		virtual void on_id_aux_initialize() override {} // disable start() (TODO)
+		virtual void on_id_aux_finalize() override {} // disable join()
 
 	public:
 		virtual std::string get_name() const override;

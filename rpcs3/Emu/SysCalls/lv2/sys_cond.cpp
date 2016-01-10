@@ -13,10 +13,8 @@ SysCallBase sys_cond("sys_cond");
 
 extern u64 get_system_time();
 
-void lv2_cond_t::notify(lv2_lock_t& lv2_lock, sleep_queue_t::value_type& thread)
+void lv2_cond_t::notify(lv2_lock_t, CPUThread* thread)
 {
-	CHECK_LV2_LOCK(lv2_lock);
-
 	if (mutex->owner)
 	{
 		// add thread to the mutex sleep queue if cannot lock immediately
@@ -24,7 +22,7 @@ void lv2_cond_t::notify(lv2_lock_t& lv2_lock, sleep_queue_t::value_type& thread)
 	}
 	else
 	{
-		mutex->owner = thread;
+		mutex->owner = std::static_pointer_cast<CPUThread>(thread->shared_from_this());
 
 		if (!thread->signal())
 		{
@@ -150,7 +148,7 @@ s32 sys_cond_signal_to(u32 cond_id, u32 thread_id)
 		return CELL_ESRCH;
 	}
 
-	const auto found = std::find_if(cond->sq.begin(), cond->sq.end(), [=](sleep_queue_t::value_type& thread)
+	const auto found = std::find_if(cond->sq.begin(), cond->sq.end(), [=](CPUThread* thread)
 	{
 		return thread->get_id() == thread_id;
 	});
@@ -196,10 +194,10 @@ s32 sys_cond_wait(PPUThread& ppu, u32 cond_id, u64 timeout)
 	cond->mutex->unlock(lv2_lock);
 
 	// add waiter; protocol is ignored in current implementation
-	sleep_queue_entry_t waiter(ppu, cond->sq);
+	sleep_entry<CPUThread> waiter(cond->sq, ppu);
 
 	// potential mutex waiter (not added immediately)
-	sleep_queue_entry_t mutex_waiter(ppu, cond->mutex->sq, defer_sleep);
+	sleep_entry<CPUThread> mutex_waiter(cond->mutex->sq, ppu, defer_sleep);
 
 	while (!ppu.unsignal())
 	{

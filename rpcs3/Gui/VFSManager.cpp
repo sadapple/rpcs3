@@ -47,21 +47,15 @@ VFSEntrySettingsDialog::VFSEntrySettingsDialog(wxWindow* parent, VFSManagerEntry
 
 	SetSize(350, -1);
 
-	for(const auto i : vfsDeviceTypeNames)
-	{
-		m_ch_type->Append(i);
-	}
-
-
 	m_ch_type->Bind(wxEVT_CHOICE, &VFSEntrySettingsDialog::OnSelectType, this);
 	m_btn_select_path->Bind(wxEVT_BUTTON, &VFSEntrySettingsDialog::OnSelectPath, this);
 	m_btn_select_dev_path->Bind(wxEVT_BUTTON, &VFSEntrySettingsDialog::OnSelectDevPath, this);
 	Bind(wxEVT_BUTTON,  &VFSEntrySettingsDialog::OnOk, this, wxID_OK);
 
-	m_tctrl_dev_path->SetValue(m_entry.device_path);
-	m_tctrl_path->SetValue(m_entry.path);
-	m_tctrl_mount->SetValue(m_entry.mount);
-	m_ch_type->SetSelection(m_entry.device);
+	//m_tctrl_dev_path->SetValue(m_entry.device_path);
+	//m_tctrl_path->SetValue(m_entry.path);
+	//m_tctrl_mount->SetValue(m_entry.mount);
+	//m_ch_type->SetSelection(m_entry.device);
 
 	wxCommandEvent ce;
 	OnSelectType(ce);
@@ -69,9 +63,9 @@ VFSEntrySettingsDialog::VFSEntrySettingsDialog(wxWindow* parent, VFSManagerEntry
 
 void VFSEntrySettingsDialog::OnSelectType(wxCommandEvent& event)
 {
-	m_btn_select_path->Enable(m_ch_type->GetSelection() == vfsDevice_LocalFile);
-	m_tctrl_dev_path->Enable(m_ch_type->GetSelection() != vfsDevice_LocalFile);
-	m_btn_select_dev_path->Enable(m_ch_type->GetSelection() != vfsDevice_LocalFile);
+	//m_btn_select_path->Enable(m_ch_type->GetSelection() == vfsDevice_LocalFile);
+	//m_tctrl_dev_path->Enable(m_ch_type->GetSelection() != vfsDevice_LocalFile);
+	//m_btn_select_dev_path->Enable(m_ch_type->GetSelection() != vfsDevice_LocalFile);
 }
 
 void VFSEntrySettingsDialog::OnSelectPath(wxCommandEvent& event)
@@ -100,10 +94,10 @@ void VFSEntrySettingsDialog::OnSelectDevPath(wxCommandEvent& event)
 
 void VFSEntrySettingsDialog::OnOk(wxCommandEvent& event)
 {
-	m_entry.device_path =  m_tctrl_dev_path->GetValue().ToStdString();
-	m_entry.path = m_tctrl_path->GetValue().ToStdString();
-	m_entry.mount = m_tctrl_mount->GetValue().ToStdString();
-	m_entry.device = (vfsDeviceType)m_ch_type->GetSelection();
+	//m_entry.device_path =  m_tctrl_dev_path->GetValue().ToStdString();
+	//m_entry.path = m_tctrl_path->GetValue().ToStdString();
+	//m_entry.mount = m_tctrl_mount->GetValue().ToStdString();
+	//m_entry.device = (vfsDeviceType)m_ch_type->GetSelection();
 
 	EndModal(wxID_OK);
 }
@@ -154,10 +148,10 @@ void VFSManagerDialog::UpdateList()
 	m_list->DeleteAllItems();
 	for(size_t i=0; i<m_entries.size(); ++i)
 	{
-		m_list->InsertItem(i, m_entries[i].mount);
-		m_list->SetItem(i, 1, m_entries[i].path);
-		m_list->SetItem(i, 2, m_entries[i].device_path);
-		m_list->SetItem(i, 3, vfsDeviceTypeNames[m_entries[i].device]);
+		//m_list->InsertItem(i, m_entries[i].mount);
+		//m_list->SetItem(i, 1, m_entries[i].path);
+		//m_list->SetItem(i, 2, m_entries[i].device_path);
+		//m_list->SetItem(i, 3, vfsDeviceTypeNames[m_entries[i].device]);
 	}
 	m_list->SetColumnWidth(0, wxLIST_AUTOSIZE_USEHEADER);
 	m_list->SetColumnWidth(1, wxLIST_AUTOSIZE_USEHEADER);
@@ -223,11 +217,8 @@ void VFSManagerDialog::OnOK(wxCommandEvent& event)
 void VFSManagerDialog::LoadEntries()
 {
 	m_entries.clear();
-
-	Emu.GetVFS().SaveLoadDevices(m_entries, true);
 }
 
 void VFSManagerDialog::SaveEntries()
 {
-	Emu.GetVFS().SaveLoadDevices(m_entries, false);
 }

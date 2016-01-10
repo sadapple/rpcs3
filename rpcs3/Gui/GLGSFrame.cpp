@@ -2,11 +2,10 @@
 #include "stdafx_gui.h"
 #include "GLGSFrame.h"
 
-GLGSFrame::GLGSFrame() : GSFrame("OpenGL")
+GLGSFrame::GLGSFrame(size2i size)
+	: GSFrame("OpenGL", size)
+	, m_canvas(new wxGLCanvas(this, wxID_ANY, NULL, wxDefaultPosition, { size.width, size.height }))
 {
-	m_canvas = new wxGLCanvas(this, wxID_ANY, NULL);
-	m_canvas->SetSize(GetClientSize());
-
 	m_canvas->Bind(wxEVT_LEFT_DCLICK, &GSFrame::OnLeftDclick, this);
 }
 

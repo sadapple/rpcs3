@@ -10,18 +10,15 @@ private:
 
 	ALuint m_source;
 	ALuint m_buffers[g_al_buffers_count];
-	ALCdevice* m_device;
-	ALCcontext* m_context;
 	ALsizei m_buffer_size;
 
 public:
-	virtual ~OpenALThread();
+	OpenALThread();
+	virtual ~OpenALThread() override;
 
-	virtual void Init();
-	virtual void Quit();
-	virtual void Play();
-	virtual void Open(const void* src, int size);
-	virtual void Close();
-	virtual void Stop();
-	virtual void AddData(const void* src, int size);
+	virtual void Play() override;
+	virtual void Open(const void* src, int size) override;
+	virtual void Close() override;
+	virtual void Stop() override;
+	virtual void AddData(const void* src, int size) override;
 };

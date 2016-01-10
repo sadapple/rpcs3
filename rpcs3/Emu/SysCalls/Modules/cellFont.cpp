@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "Emu/Memory/Memory.h"
+#include "Emu/FS/VFS.h"
 #include "Emu/SysCalls/Modules.h"
 
 #include "stblib/stb_truetype.h"
-#include "Emu/FS/vfsFile.h"
 #include "cellFont.h"
 
 extern Module<> cellFont;
@@ -65,15 +65,15 @@ s32 cellFontOpenFontFile(vm::ptr<CellFontLibrary> library, vm::cptr<char> fontPa
 {
 	cellFont.warning("cellFontOpenFontFile(library=*0x%x, fontPath=*0x%x, subNum=%d, uniqueId=%d, font=*0x%x)", library, fontPath, subNum, uniqueId, font);
 
-	vfsFile f(fontPath.get_ptr());
-	if (!f.IsOpened())
+	fs::file f(vfs::get(fontPath.get_ptr()));
+	if (!f)
 	{
 		return CELL_FONT_ERROR_FONT_OPEN_FAILED;
 	}
 
-	u32 fileSize = (u32)f.GetSize();
+	u32 fileSize = ::size32(f);
 	u32 bufferAddr = vm::alloc(fileSize, vm::main); // Freed in cellFontCloseFont
-	f.Read(vm::base(bufferAddr), fileSize);
+	f.read(vm::base(bufferAddr), fileSize);
 	s32 ret = cellFontOpenFontMemory(library, bufferAddr, fileSize, subNum, uniqueId, font);
 	font->origin = CELL_FONT_OPEN_FONT_FILE;
 

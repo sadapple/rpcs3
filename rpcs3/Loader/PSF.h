@@ -23,8 +23,8 @@ namespace psf
 			, m_max_size(max_size)
 			, m_value_string(value)
 		{
-			CHECK_ASSERTION(type == format::string || type == format::array);
-			CHECK_ASSERTION(max_size);
+			Expects(type == format::string || type == format::array);
+			Expects(max_size);
 		}
 
 		// Construct integer entry, assign the value
@@ -51,6 +51,19 @@ namespace psf
 
 	// Load PSF registry from binary data
 	registry load(const std::vector<char>&);
+
+	// Load PSF registry from file, if opened
+	inline registry load(const fs::file& f)
+	{
+		if (f)
+		{
+			return load(f.to_vector<char>());
+		}
+		else
+		{
+			return registry{};
+		}
+	}
 
 	// Convert PSF registry to binary format
 	std::vector<char> save(const registry&);

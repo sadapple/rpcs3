@@ -98,14 +98,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="BasicKeyboardHandler.cpp" />
+    <ClCompile Include="BasicMouseHandler.cpp" />
     <ClCompile Include="Emu\Cell\PPUProgramCompiler.cpp" />
-    <ClCompile Include="Emu\Io\XInput\XInputPadHandler.cpp" />
     <ClCompile Include="Gui\AutoPauseManager.cpp" />
     <ClCompile Include="Gui\CgDisasm.cpp" />
     <ClCompile Include="Gui\CompilerELF.cpp" />
     <ClCompile Include="Gui\ConLogFrame.cpp" />
     <ClCompile Include="Gui\Debugger.cpp" />
     <ClCompile Include="Gui\DisAsmFrame.cpp" />
+    <ClCompile Include="Gui\FrameBase.cpp" />
     <ClCompile Include="Gui\GameViewer.cpp" />
     <ClCompile Include="Gui\GLGSFrame.cpp" />
     <ClCompile Include="Gui\GSFrame.cpp" />
@@ -125,7 +127,9 @@
     <ClCompile Include="Gui\TextInputDialog.cpp" />
     <ClCompile Include="Gui\VFSManager.cpp" />
     <ClCompile Include="Gui\VHDDManager.cpp" />
+    <ClCompile Include="KeyboardPadHandler.cpp" />
     <ClCompile Include="rpcs3.cpp" />
+    <ClCompile Include="XInputPadHandler.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="rpcs3.rc" />
@@ -133,10 +137,6 @@
   <ItemGroup>
     <ClInclude Include="..\Utilities\MTProgressDialog.h" />
     <ClInclude Include="Emu\Cell\PPUProgramCompiler.h" />
-    <ClInclude Include="Emu\Io\Windows\WindowsKeyboardHandler.h" />
-    <ClInclude Include="Emu\Io\Windows\WindowsMouseHandler.h" />
-    <ClInclude Include="Emu\Io\Windows\WindowsPadHandler.h" />
-    <ClInclude Include="Emu\Io\XInput\XInputPadHandler.h" />
     <ClInclude Include="Gui\AboutDialog.h" />
     <ClInclude Include="Gui\AutoPauseManager.h" />
     <ClInclude Include="Gui\CgDisasm.h" />
@@ -166,9 +166,13 @@
     <ClInclude Include="Gui\TextInputDialog.h" />
     <ClInclude Include="Gui\VFSManager.h" />
     <ClInclude Include="Gui\VHDDManager.h" />
+    <ClInclude Include="KeyboardPadHandler.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="rpcs3.h" />
     <ClInclude Include="stdafx_gui.h" />
+    <ClInclude Include="BasicKeyboardHandler.h" />
+    <ClInclude Include="BasicMouseHandler.h" />
+    <ClInclude Include="XInputPadHandler.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="D3D12GSRender.vcxproj">

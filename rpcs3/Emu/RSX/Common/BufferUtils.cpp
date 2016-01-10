@@ -258,7 +258,7 @@ bool is_primitive_native(rsx::primitive_type draw_mode)
 	case rsx::primitive_type::quads:
 		return false;
 	}
-	throw new EXCEPTION("Wrong primitive type");
+	throw EXCEPTION("Wrong primitive type");
 }
 
 /** We assume that polygon is convex in polygon mode (constraints in OpenGL)
@@ -291,7 +291,7 @@ size_t get_index_type_size(rsx::index_array_type type)
 	case rsx::index_array_type::u16: return sizeof(u16);
 	case rsx::index_array_type::u32: return sizeof(u32);
 	}
-	throw new EXCEPTION("Wrong index type");
+	throw EXCEPTION("Wrong index type");
 }
 
 void write_index_array_for_non_indexed_non_native_primitive_to_buffer(char* dst, rsx::primitive_type draw_mode, unsigned first, unsigned count)
@@ -328,7 +328,7 @@ void write_index_array_for_non_indexed_non_native_primitive_to_buffer(char* dst,
 	case rsx::primitive_type::triangles:
 	case rsx::primitive_type::triangle_strip:
 	case rsx::primitive_type::quad_strip:
-		throw new EXCEPTION("Native primitive type doesn't require expansion");
+		throw EXCEPTION("Native primitive type doesn't require expansion");
 	}
 }
 
@@ -376,7 +376,7 @@ std::tuple<T, T> write_index_array_data_to_buffer_impl(gsl::span<T, gsl::dynamic
 		return expand_indexed_quads<T>({ ptr, count }, dst, is_primitive_restart_enabled, primitive_restart_index);
 	}
 
-	throw new EXCEPTION("Unknow draw mode");
+	throw EXCEPTION("Unknow draw mode");
 }
 
 std::tuple<u32, u32> write_index_array_data_to_buffer(gsl::span<u32, gsl::dynamic_range> dst, rsx::primitive_type draw_mode, const std::vector<std::pair<u32, u32> > &first_count_arguments)

@@ -39,7 +39,7 @@ struct lv2_event_flag_t
 
 	std::atomic<u64> pattern;
 
-	sleep_queue_t sq;
+	sleep_queue<CPUThread> sq;
 
 	lv2_event_flag_t(u64 pattern, u32 protocol, s32 type, u64 name)
 		: pattern(pattern)
@@ -105,7 +105,7 @@ struct lv2_event_flag_t
 		}
 	}
 
-	void notify_all(lv2_lock_t& lv2_lock);
+	void notify_all(lv2_lock_t);
 };
 
 // Aux

@@ -1,9 +1,9 @@
 #include "stdafx.h"
-#include "Emu/System.h"
 #include "Emu/Memory/Memory.h"
+#include "Emu/FS/VFS.h"
+#include "Emu/System.h"
 #include "Emu/SysCalls/Callback.h"
 #include "Emu/SysCalls/Modules.h"
-#include "Emu/FS/vfsFile.h"
 
 #include "cellSail.h"
 #include "cellPamf.h"
@@ -815,15 +815,13 @@ s32 cellSailPlayerCreateDescriptor(vm::ptr<CellSailPlayer> pSelf, s32 streamType
 			std::string uri = pUri.get_ptr();
 			if (uri.substr(0, 12) == "x-cell-fs://")
 			{
-				std::string path = uri.substr(12);
-				vfsFile f;
-				if (f.Open(path))
+				if (fs::file f{ vfs::get(uri.substr(12)) })
 				{
-					u64 size = f.GetSize();
+					u64 size = f.size();
 					u32 buffer = vm::alloc(size, vm::main);
 					auto bufPtr = vm::cptr<PamfHeader>::make(buffer);
 					PamfHeader *buf = const_cast<PamfHeader*>(bufPtr.get_ptr());
-					assert(f.Read(buf, size) == size);
+					ASSERT(f.read(buf, size) == size);
 					u32 sp_ = vm::alloc(sizeof(CellPamfReader), vm::main);
 					auto sp = vm::ptr<CellPamfReader>::make(sp_);
 					u32 reader = cellPamfReaderInitialize(sp, bufPtr, size, 0);

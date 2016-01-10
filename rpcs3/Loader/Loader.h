@@ -1,8 +1,4 @@
 #pragma once
-#include "Emu/Memory/vm.h"
-
-struct vfsFileBase;
-struct vfsStream;
 
 #ifdef _DEBUG	
 	//#define LOADER_DEBUG
@@ -55,7 +51,7 @@ namespace loader
 		u64 m_stream_offset;
 
 	protected:
-		vfsStream* m_stream;
+		const fs::file* m_stream;
 
 	public:
 		enum error_code
@@ -70,7 +66,7 @@ namespace loader
 
 		virtual ~handler() = default;
 
-		virtual error_code init(vfsStream& stream);
+		virtual error_code init(const fs::file& stream);
 		virtual error_code load() = 0;
 		u64 get_stream_offset() const
 		{
@@ -124,8 +120,6 @@ namespace loader
 			m_handlers.push_back(handler);
 		}
 
-		bool load(vfsStream& stream);
+		bool load(const fs::file& stream);
 	};
-
-	using namespace vm;
 }

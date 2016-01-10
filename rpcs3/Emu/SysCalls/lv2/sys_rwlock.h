@@ -27,8 +27,8 @@ struct lv2_rwlock_t
 	std::atomic<u32> readers{ 0 }; // reader lock count
 	std::shared_ptr<CPUThread> writer; // writer lock owner
 
-	sleep_queue_t rsq; // threads trying to acquire readed lock
-	sleep_queue_t wsq; // threads trying to acquire writer lock
+	sleep_queue<CPUThread> rsq; // threads trying to acquire readed lock
+	sleep_queue<CPUThread> wsq; // threads trying to acquire writer lock
 
 	lv2_rwlock_t(u32 protocol, u64 name)
 		: protocol(protocol)
@@ -36,7 +36,7 @@ struct lv2_rwlock_t
 	{
 	}
 
-	void notify_all(lv2_lock_t& lv2_lock);
+	void notify_all(lv2_lock_t);
 };
 
 // Aux

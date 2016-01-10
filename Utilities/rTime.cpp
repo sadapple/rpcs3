@@ -3,6 +3,7 @@
 #pragma warning(push)
 #pragma message("TODO: remove wx dependency: <wx/datetime.h>")
 #pragma warning(disable : 4996)
+#include "stdafx_gui.h"
 #include <wx/datetime.h>
 #pragma warning(pop)
 

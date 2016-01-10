@@ -1,24 +1,25 @@
 #include "stdafx.h"
+#include "Utilities/Registry.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/System.h"
-#include "Emu/state.h"
 #include "Emu/IdManager.h"
 #include "Emu/Cell/PPUThread.h"
 #include "Emu/Cell/PPUDecoder.h"
 #include "Emu/Cell/PPUInterpreter.h"
 #include "Emu/Cell/PPUInterpreter2.h"
 #include "Emu/Cell/PPULLVMRecompiler.h"
-//#include "Emu/Cell/PPURecompiler.h"
 #include "Utilities/VirtualMemory.h"
 
-#ifdef _WIN32
-#include <Windows.h>
-#else
-#include <sys/mman.h>
-#include <sys/stat.h>
-#endif
-
 u64 rotate_mask[64][64];
+
+const extern cfg::map_entry<std::function<std::unique_ptr<CPUDecoder>(PPUThread&)>> g_cfg_ppu_decoder("core/PPU Decoder", 1,
+{
+	{ "Interpreter", [](PPUThread& ppu) { return std::make_unique<PPUDecoder>(new PPUInterpreter(ppu)); } },
+	{ "Interpreter 2", [](PPUThread& ppu) { return nullptr; } },
+#ifdef PPU_LLVM_RECOMPILER
+	{ "Recompiler (LLVM)", [](PPUThread& ppu) { return std::make_unique<ppu_recompiler_llvm::CPUHybridDecoderRecompiler>(ppu); } },
+#endif
+});
 
 extern u32 ppu_get_tls(u32 thread);
 extern void ppu_free_tls(u32 thread);
@@ -136,40 +137,7 @@ bool PPUThread::handle_interrupt()
 
 void PPUThread::do_run()
 {
-	m_dec.reset();
-
-	switch (auto mode = rpcs3::state.config.core.ppu_decoder.value())
-	{
-	case ppu_decoder_type::interpreter: // original interpreter
-	{
-		m_dec.reset(new PPUDecoder(new PPUInterpreter(*this)));
-		break;
-	}
-
-	case ppu_decoder_type::interpreter2: // alternative interpreter
-	{
-		break;
-	}
-
-	case ppu_decoder_type::recompiler_llvm:
-	{
-#ifdef PPU_LLVM_RECOMPILER
-		m_dec.reset(new ppu_recompiler_llvm::CPUHybridDecoderRecompiler(*this));
-#else
-		LOG_ERROR(PPU, "This image does not include PPU JIT (LLVM)");
-		Emu.Pause();
-#endif
-		break;
-	}
-
-	//case 3: m_dec.reset(new PPURecompiler(*this)); break;
-
-	default:
-	{
-		LOG_ERROR(PPU, "Invalid CPU decoder mode: %d", mode);
-		Emu.Pause();
-	}
-	}
+	m_dec = g_cfg_ppu_decoder.get()(*this);
 }
 
 bool FPRdouble::IsINF(PPCdouble d)
@@ -209,7 +177,7 @@ int FPRdouble::Cmp(PPCdouble a, PPCdouble b)
 
 u64 PPUThread::get_stack_arg(s32 i)
 {
-	return vm::ps3::read64(VM_CAST(GPR[1] + 0x70 + 0x8 * (i - 9)));
+	return vm::ps3::read64(vm::cast(GPR[1] + 0x70 + 0x8 * (i - 9), HERE));
 }
 
 void PPUThread::fast_call(u32 addr, u32 rtoc)
@@ -224,8 +192,6 @@ void PPUThread::fast_call(u32 addr, u32 rtoc)
 	auto old_rtoc = GPR[2];
 	auto old_LR = LR;
 	auto old_task = std::move(custom_task);
-
-	assert(!old_task || !custom_task);
 
 	PC = addr;
 	GPR[2] = rtoc;
@@ -347,7 +313,7 @@ cpu_thread& ppu_thread::args(std::initializer_list<std::string> values)
 	if (!values.size())
 		return *this;
 
-	assert(argc == 0);
+	Expects(argc == 0);
 
 	envp.set(vm::alloc(align(SIZE_32(*envp), stack_align), vm::main));
 	*envp = 0;
@@ -379,7 +345,7 @@ cpu_thread& ppu_thread::run()
 
 ppu_thread& ppu_thread::gpr(uint index, u64 value)
 {
-	assert(index < 32);
+	Expects(index < 32);
 
 	static_cast<PPUThread&>(*thread).GPR[index] = value;
 

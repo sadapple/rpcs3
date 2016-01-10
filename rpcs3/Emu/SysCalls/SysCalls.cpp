@@ -2,7 +2,6 @@
 #include "Utilities/AutoPause.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/System.h"
-#include "Emu/state.h"
 #include "Modules.h"
 
 #include "lv2/sys_lwmutex.h"
@@ -899,6 +898,8 @@ void execute_syscall_by_index(PPUThread& ppu, u64 code)
 	
 	auto last_code = ppu.hle_code;
 	ppu.hle_code = ~code;
+
+	debug::autopause::pause_syscall(code);
 
 	LOG_TRACE(PPU, "Syscall %lld called: %s", code, get_ps3_function_name(~code));
 

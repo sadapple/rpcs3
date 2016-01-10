@@ -1,13 +1,12 @@
 #include "stdafx.h"
 #include "Emu/Memory/Memory.h"
+#include "Emu/FS/VFS.h"
 #include "Emu/System.h"
 #include "Emu/IdManager.h"
 #include "Emu/SysCalls/SysCalls.h"
 
 #include "Emu/CPU/CPUThreadManager.h"
 #include "Emu/Cell/RawSPUThread.h"
-#include "Emu/FS/vfsStreamMemory.h"
-#include "Emu/FS/vfsFile.h"
 #include "Loader/ELF32.h"
 #include "Crypto/unself.h"
 #include "sys_interrupt.h"
@@ -16,7 +15,7 @@
 
 SysCallBase sys_spu("sys_spu");
 
-void LoadSpuImage(vfsStream& stream, u32& spu_ep, u32 addr)
+void LoadSpuImage(const fs::file& stream, u32& spu_ep, u32 addr)
 {
 	loader::handlers::elf32 h;
 	h.init(stream);
@@ -24,27 +23,13 @@ void LoadSpuImage(vfsStream& stream, u32& spu_ep, u32 addr)
 	spu_ep = h.m_ehdr.data_be.e_entry;
 }
 
-u32 LoadSpuImage(vfsStream& stream, u32& spu_ep)
+u32 LoadSpuImage(const fs::file& stream, u32& spu_ep)
 {
 	const u32 alloc_size = 256 * 1024;
 	u32 spu_offset = (u32)vm::alloc(alloc_size, vm::main);
 
 	LoadSpuImage(stream, spu_ep, spu_offset);
 	return spu_offset;
-}
-
-s32 spu_image_import(sys_spu_image& img, u32 src, u32 type)
-{
-	vfsStreamMemory f(src);
-	u32 entry;
-	u32 offset = LoadSpuImage(f, entry);
-
-	img.type = SYS_SPU_IMAGE_TYPE_USER;
-	img.entry_point = entry;
-	img.addr = offset; // TODO: writing actual segment info
-	img.nsegs = 1; // wrong value
-
-	return CELL_OK;
 }
 
 s32 sys_spu_initialize(u32 max_usable_spu, u32 max_raw_spu)
@@ -59,14 +44,14 @@ s32 sys_spu_initialize(u32 max_usable_spu, u32 max_raw_spu)
 	return CELL_OK;
 }
 
-s32 sys_spu_image_open(vm::ptr<sys_spu_image> img, vm::cptr<char> path)
+s32 sys_spu_image_open(vm::ptr<sys_spu_image_t> img, vm::cptr<char> path)
 {
 	sys_spu.warning("sys_spu_image_open(img=*0x%x, path=*0x%x)", img, path);
 
-	vfsFile f(path.get_ptr());
-	if(!f.IsOpened())
+	const fs::file f(vfs::get(path.get_ptr()));
+	if (!f)
 	{
-		sys_spu.error("sys_spu_image_open error: '%s' not found!", path.get_ptr());
+		sys_spu.error("sys_spu_image_open() error: '%s' not found!", path.get_ptr());
 		return CELL_ENOENT;
 	}
 
@@ -75,25 +60,23 @@ s32 sys_spu_image_open(vm::ptr<sys_spu_image> img, vm::cptr<char> path)
 
 	if (hdr.CheckMagic())
 	{
-		sys_spu.error("sys_spu_image_open error: '%s' is encrypted! Decrypt SELF and try again.", path.get_ptr());
-		Emu.Pause();
-		return CELL_ENOENT;
+		throw fmt::exception("sys_spu_image_open() error: '%s' is encrypted! Try to decrypt it manually and try again.", path.get_ptr());
 	}
 
-	f.Seek(0);
+	f.seek(0);
 
 	u32 entry;
 	u32 offset = LoadSpuImage(f, entry);
 
 	img->type = SYS_SPU_IMAGE_TYPE_USER;
 	img->entry_point = entry;
-	img->addr = offset; // TODO: writing actual segment info
+	img->segs.set(offset); // TODO: writing actual segment info
 	img->nsegs = 1; // wrong value
 
 	return CELL_OK;
 }
 
-u32 spu_thread_initialize(u32 group_id, u32 spu_num, vm::ptr<sys_spu_image> img, const std::string& name, u32 option, u64 a1, u64 a2, u64 a3, u64 a4, std::function<void(SPUThread&)> task = nullptr)
+u32 spu_thread_initialize(u32 group_id, u32 spu_num, vm::ptr<sys_spu_image_t> img, const std::string& name, u32 option, u64 a1, u64 a2, u64 a3, u64 a4, std::function<void(SPUThread&)> task = nullptr)
 {
 	if (option)
 	{
@@ -134,7 +117,7 @@ u32 spu_thread_initialize(u32 group_id, u32 spu_num, vm::ptr<sys_spu_image> img,
 	return spu->get_id();
 }
 
-s32 sys_spu_thread_initialize(vm::ptr<u32> thread, u32 group_id, u32 spu_num, vm::ptr<sys_spu_image> img, vm::ptr<sys_spu_thread_attribute> attr, vm::ptr<sys_spu_thread_argument> arg)
+s32 sys_spu_thread_initialize(vm::ptr<u32> thread, u32 group_id, u32 spu_num, vm::ptr<sys_spu_image_t> img, vm::ptr<sys_spu_thread_attribute> attr, vm::ptr<sys_spu_thread_argument> arg)
 {
 	sys_spu.warning("sys_spu_thread_initialize(thread=*0x%x, group=0x%x, spu_num=%d, img=*0x%x, attr=*0x%x, arg=*0x%x)", thread, group_id, spu_num, img, attr, arg);
 
@@ -312,7 +295,7 @@ s32 sys_spu_thread_group_start(u32 id)
 
 			// Copy SPU image:
 			// TODO: use segment info
-			std::memcpy(vm::base(t->offset), vm::base(image->addr), 256 * 1024);
+			std::memcpy(vm::base(t->offset), image->segs.get_ptr(), 256 * 1024);
 
 			t->pc = image->entry_point;
 			t->run();

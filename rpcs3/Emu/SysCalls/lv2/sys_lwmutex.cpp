@@ -12,10 +12,8 @@ SysCallBase sys_lwmutex("sys_lwmutex");
 
 extern u64 get_system_time();
 
-void lv2_lwmutex_t::unlock(lv2_lock_t& lv2_lock)
+void lv2_lwmutex_t::unlock(lv2_lock_t)
 {
-	CHECK_LV2_LOCK(lv2_lock);
-
 	if (signaled)
 	{
 		throw EXCEPTION("Unexpected");
@@ -102,7 +100,7 @@ s32 _sys_lwmutex_lock(PPUThread& ppu, u32 lwmutex_id, u64 timeout)
 	}
 
 	// add waiter; protocol is ignored in current implementation
-	sleep_queue_entry_t waiter(ppu, mutex->sq);
+	sleep_entry<CPUThread> waiter(mutex->sq, ppu);
 
 	while (!ppu.unsignal())
 	{

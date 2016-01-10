@@ -1,7 +1,7 @@
 #include "stdafx.h"
+#include "Utilities/Registry.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/System.h"
-#include "Emu/state.h"
 #include "Emu/SysCalls/Modules.h"
 #include "Emu/SysCalls/Callback.h"
 
@@ -12,8 +12,32 @@ extern Module<> cellSysutil;
 
 std::unique_ptr<sysutil_t> g_sysutil;
 
+const extern cfg::map_entry<s32> g_cfg_sys_language("sys/Language",
+{
+	{ "Japanese", CELL_SYSUTIL_LANG_JAPANESE },
+	{ "English (US)", CELL_SYSUTIL_LANG_ENGLISH_US },
+	{ "French", CELL_SYSUTIL_LANG_FRENCH },
+	{ "Spanish", CELL_SYSUTIL_LANG_SPANISH },
+	{ "German", CELL_SYSUTIL_LANG_GERMAN },
+	{ "Italian", CELL_SYSUTIL_LANG_ITALIAN },
+	{ "Dutch", CELL_SYSUTIL_LANG_DUTCH },
+	{ "Portuguese (PT)", CELL_SYSUTIL_LANG_PORTUGUESE_PT },
+	{ "Russian", CELL_SYSUTIL_LANG_RUSSIAN },
+	{ "Korean", CELL_SYSUTIL_LANG_KOREAN },
+	{ "Chinese (Trad.)", CELL_SYSUTIL_LANG_CHINESE_T },
+	{ "Chinese (Simp.)", CELL_SYSUTIL_LANG_CHINESE_S },
+	{ "Finnish", CELL_SYSUTIL_LANG_FINNISH },
+	{ "Swedish", CELL_SYSUTIL_LANG_SWEDISH },
+	{ "Danish", CELL_SYSUTIL_LANG_DANISH },
+	{ "Norwegian", CELL_SYSUTIL_LANG_NORWEGIAN },
+	{ "Polish", CELL_SYSUTIL_LANG_POLISH },
+	{ "English (UK)", CELL_SYSUTIL_LANG_ENGLISH_GB },
+});
+
 const char* get_systemparam_id_name(s32 id)
 {
+	thread_local static char tls_id_name[32]; // for test
+
 	switch (id)
 	{
 	case CELL_SYSUTIL_SYSTEMPARAM_ID_LANG: return "ID_LANG";
@@ -33,18 +57,20 @@ const char* get_systemparam_id_name(s32 id)
 	case CELL_SYSUTIL_SYSTEMPARAM_ID_PAD_AUTOOFF: return "ID_PAD_AUTOOFF";
 	case CELL_SYSUTIL_SYSTEMPARAM_ID_NICKNAME: return "ID_NICKNAME";
 	case CELL_SYSUTIL_SYSTEMPARAM_ID_CURRENT_USERNAME: return "ID_CURRENT_USERNAME";
-	default: return "???";
+	default: std::snprintf(tls_id_name, sizeof(tls_id_name), "0x%x (UNKNOWN)", id); return tls_id_name;
 	}
 }
 
 s32 cellSysutilGetSystemParamInt(s32 id, vm::ptr<s32> value)
 {
-	cellSysutil.warning("cellSysutilGetSystemParamInt(id=0x%x(%s), value=*0x%x)", id, get_systemparam_id_name(id), value);
+	cellSysutil.warning("cellSysutilGetSystemParamInt(id=%s, value=*0x%x)", get_systemparam_id_name(id), value);
+
+	// TODO: load this information from config (preferably "sys/" group)
 
 	switch(id)
 	{
 	case CELL_SYSUTIL_SYSTEMPARAM_ID_LANG:
-		*value = rpcs3::config.system.language.value();
+		*value = g_cfg_sys_language.get();
 	break;
 
 	case CELL_SYSUTIL_SYSTEMPARAM_ID_ENTER_BUTTON_ASSIGN:
@@ -210,8 +236,7 @@ s32 cellSysCacheClear(void)
 		return CELL_SYSCACHE_ERROR_NOTMOUNTED;
 	}
 
-	std::string localPath;
-	Emu.GetVFS().GetDevice("/dev_hdd1/cache/", localPath);
+	const std::string& local_path = vfs::get("/dev_hdd1/cache/");
 
 	// TODO: Write tests to figure out, what is deleted.
 
@@ -222,12 +247,14 @@ s32 cellSysCacheMount(vm::ptr<CellSysCacheParam> param)
 {
 	cellSysutil.warning("cellSysCacheMount(param=*0x%x)", param);
 
-	// TODO: implement
-	char id[CELL_SYSCACHE_ID_SIZE] = { '\0' };
-	strncpy(id, param->cacheId, CELL_SYSCACHE_ID_SIZE - 1);
-	strncpy(param->getCachePath, ("/dev_hdd1/cache/"s + id + "/").c_str(), CELL_SYSCACHE_PATH_MAX);
-	param->getCachePath[CELL_SYSCACHE_PATH_MAX - 1] = '\0';
-	Emu.GetVFS().CreateDir(param->getCachePath);
+	const std::string& cache_id = param->cacheId;
+	ASSERT(cache_id.size() < sizeof(param->cacheId));
+	
+	const std::string& cache_path = "/dev_hdd1/cache/" + cache_id + '/';
+	strcpy_trunc(param->getCachePath, cache_path);
+
+	// TODO: implement (what?)
+	fs::create_dir(vfs::get(cache_path));
 	g_sysutil->cacheMounted.exchange(true);
 
 	return CELL_SYSCACHE_RET_OK_RELAYED;
@@ -302,7 +329,8 @@ s32 cellSysutilGetBgmPlaybackStatus2(vm::ptr<CellSysutilBgmPlaybackStatus2> stat
 
 s32 cellSysutilSetBgmPlaybackExtraParam()
 {
-	throw EXCEPTION("");
+	cellSysutil.todo("cellSysutilSetBgmPlaybackExtraParam()");
+	return CELL_OK;
 }
 
 s32 cellSysutilRegisterCallbackDispatcher()

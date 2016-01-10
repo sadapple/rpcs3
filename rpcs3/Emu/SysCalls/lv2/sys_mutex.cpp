@@ -12,16 +12,14 @@ SysCallBase sys_mutex("sys_mutex");
 
 extern u64 get_system_time();
 
-void lv2_mutex_t::unlock(lv2_lock_t& lv2_lock)
+void lv2_mutex_t::unlock(lv2_lock_t)
 {
-	CHECK_LV2_LOCK(lv2_lock);
-
 	owner.reset();
 
 	if (sq.size())
 	{
 		// pick new owner; protocol is ignored in current implementation
-		owner = sq.front();
+		owner = std::static_pointer_cast<CPUThread>(sq.front()->shared_from_this());
 
 		if (!owner->signal())
 		{
@@ -138,7 +136,7 @@ s32 sys_mutex_lock(PPUThread& ppu, u32 mutex_id, u64 timeout)
 	}
 
 	// add waiter; protocol is ignored in current implementation
-	sleep_queue_entry_t waiter(ppu, mutex->sq);
+	sleep_entry<CPUThread> waiter(mutex->sq, ppu);
 
 	while (!ppu.unsignal())
 	{

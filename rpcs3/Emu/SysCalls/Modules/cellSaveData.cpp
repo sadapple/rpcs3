@@ -1,11 +1,9 @@
 #include "stdafx.h"
 #include "Emu/Memory/Memory.h"
+#include "Emu/FS/VFS.h"
 #include "Emu/System.h"
 #include "Emu/SysCalls/Modules.h"
 
-#include "Emu/FS/VFS.h"
-#include "Emu/FS/vfsFile.h"
-#include "Emu/FS/vfsDir.h"
 #include "Loader/PSF.h"
 #include "cellSaveData.h"
 
@@ -61,7 +59,7 @@ never_inline s32 savedata_op(PPUThread& ppu, u32 operation, u32 version, vm::cpt
 	vm::var<CellSaveDataFileSet>  fileSet;
 
 	// path of the specified user (00000001 by default)
-	const std::string base_dir = fmt::format("/dev_hdd0/home/%08u/savedata/", userId ? userId : 1u);
+	const std::string& base_dir = vfs::get(fmt::format("/dev_hdd0/home/%08u/savedata/", userId ? userId : 1u));
 
 	result->userdata = userdata; // probably should be assigned only once (allows the callback to change it)
 
@@ -78,16 +76,16 @@ never_inline s32 savedata_op(PPUThread& ppu, u32 operation, u32 version, vm::cpt
 
 		const auto prefix_list = fmt::split(setList->dirNamePrefix.get_ptr(), { "|" });
 
-		for (const auto entry : vfsDir(base_dir))
+		for (const auto& entry : fs::dir(base_dir))
 		{
-			if (entry->flags & DirEntry_TypeFile)
+			if (entry.is_directory)
 			{
 				continue;
 			}
 
 			for (const auto& prefix : prefix_list)
 			{
-				if (entry->name.substr(0, prefix.size()) == prefix)
+				if (entry.name.substr(0, prefix.size()) == prefix)
 				{
 					// Count the amount of matches and the amount of listed directories
 					if (listGet->dirListNum++ < setBuf->dirListMax)
@@ -95,7 +93,7 @@ never_inline s32 savedata_op(PPUThread& ppu, u32 operation, u32 version, vm::cpt
 						listGet->dirNum++;
 
 						// PSF parameters
-						const auto& psf = psf::load(vfsFile(base_dir + entry->name + "/PARAM.SFO").VRead<char>());
+						const auto& psf = psf::load(fs::file(base_dir + entry.name + "/PARAM.SFO"));
 
 						if (psf.empty())
 						{
@@ -111,14 +109,14 @@ never_inline s32 savedata_op(PPUThread& ppu, u32 operation, u32 version, vm::cpt
 
 						save_entry2.size = 0;
 
-						for (const auto entry2 : vfsDir(base_dir + entry->name))
+						for (const auto entry2 : fs::dir(base_dir + entry.name))
 						{
-							save_entry2.size += entry2->size;
+							save_entry2.size += entry2.size;
 						}
 
-						save_entry2.atime = entry->access_time;
-						save_entry2.mtime = entry->modify_time;
-						save_entry2.ctime = entry->create_time;
+						save_entry2.atime = entry.atime;
+						save_entry2.mtime = entry.mtime;
+						save_entry2.ctime = entry.ctime;
 						//save_entry2.iconBuf = NULL; // TODO: Here should be the PNG buffer
 						//save_entry2.iconBufSize = 0; // TODO: Size of the PNG file
 						save_entry2.isNew = false;
@@ -339,16 +337,12 @@ never_inline s32 savedata_op(PPUThread& ppu, u32 operation, u32 version, vm::cpt
 	std::string dir_path = base_dir + save_entry.dirName + "/";
 	std::string sfo_path = dir_path + "PARAM.SFO";
 
-	auto&& psf = psf::load(vfsFile(sfo_path).VRead<char>());
+	auto&& psf = psf::load(fs::file(sfo_path));
 
 	// Get save stats
 	{
-		std::string dir_local_path;
-
-		Emu.GetVFS().GetDevice(dir_path, dir_local_path);
-
-		fs::stat_t dir_info;
-		if (!fs::stat(dir_local_path, dir_info))
+		fs::stat_t dir_info{};
+		if (!fs::stat(dir_path, dir_info))
 		{
 			// error
 		}
@@ -381,32 +375,32 @@ never_inline s32 savedata_op(PPUThread& ppu, u32 operation, u32 version, vm::cpt
 
 		auto file_list = statGet->fileList.get_ptr();
 
-		for (const auto entry : vfsDir(dir_path))
+		for (const auto& entry : fs::dir(dir_path))
 		{
 			// only files, system files ignored, fileNum is limited by setBuf->fileListMax
-			if (entry->flags & DirEntry_TypeFile && entry->name != "PARAM.SFO" && statGet->fileListNum++ < setBuf->fileListMax)
+			if (!entry.is_directory && entry.name != "PARAM.SFO" && statGet->fileListNum++ < setBuf->fileListMax)
 			{
 				statGet->fileNum++;
 
 				auto& file = *file_list++;
 
-				if (entry->name == "ICON0.PNG")
+				if (entry.name == "ICON0.PNG")
 				{
 					file.fileType = CELL_SAVEDATA_FILETYPE_CONTENT_ICON0;
 				}
-				else if (entry->name == "ICON1.PAM")
+				else if (entry.name == "ICON1.PAM")
 				{
 					file.fileType = CELL_SAVEDATA_FILETYPE_CONTENT_ICON1;
 				}
-				else if (entry->name == "PIC1.PNG")
+				else if (entry.name == "PIC1.PNG")
 				{
 					file.fileType = CELL_SAVEDATA_FILETYPE_CONTENT_PIC1;
 				}
-				else if (entry->name == "SND0.AT3")
+				else if (entry.name == "SND0.AT3")
 				{
 					file.fileType = CELL_SAVEDATA_FILETYPE_CONTENT_SND0;
 				}
-				else if (psf::get_integer(psf, "*" + entry->name)) // let's put the list of protected files in PARAM.SFO (int param = 1 if protected)
+				else if (psf::get_integer(psf, "*" + entry.name)) // let's put the list of protected files in PARAM.SFO (int param = 1 if protected)
 				{
 					file.fileType = CELL_SAVEDATA_FILETYPE_SECUREFILE;
 				}
@@ -415,11 +409,11 @@ never_inline s32 savedata_op(PPUThread& ppu, u32 operation, u32 version, vm::cpt
 					file.fileType = CELL_SAVEDATA_FILETYPE_NORMALFILE;
 				}
 
-				file.size = entry->size;
-				file.atime = entry->access_time;
-				file.mtime = entry->modify_time;
-				file.ctime = entry->create_time;
-				strcpy_trunc(file.fileName, entry->name);
+				file.size = entry.size;
+				file.atime = entry.atime;
+				file.mtime = entry.mtime;
+				file.ctime = entry.ctime;
+				strcpy_trunc(file.fileName, entry.name);
 			}
 		}
 
@@ -473,19 +467,19 @@ never_inline s32 savedata_op(PPUThread& ppu, u32 operation, u32 version, vm::cpt
 		case CELL_SAVEDATA_RECREATE_YES:
 		case CELL_SAVEDATA_RECREATE_YES_RESET_OWNER:
 		{
-			// kill it with fire
-			for (const auto entry : vfsDir(dir_path))
+			// TODO?
+			for (const auto& entry : fs::dir(dir_path))
 			{
-				if (entry->flags & DirEntry_TypeFile)
+				if (!entry.is_directory)
 				{
-					Emu.GetVFS().RemoveFile(dir_path + entry->name);
+					fs::remove_file(dir_path + entry.name);
 				}
 			}
 
 			if (!statSet->setParam)
 			{
 				// Savedata deleted and setParam is NULL: delete directory and abort operation
-				if (Emu.GetVFS().RemoveDir(dir_path)) cellSysutil.error("savedata_op(): savedata directory %s deleted", save_entry.dirName);
+				if (fs::remove_dir(dir_path)) cellSysutil.error("savedata_op(): savedata directory %s deleted", save_entry.dirName);
 
 				return CELL_OK;
 			}
@@ -502,9 +496,10 @@ never_inline s32 savedata_op(PPUThread& ppu, u32 operation, u32 version, vm::cpt
 	}
 
 	// Create save directory if necessary
-	if (psf.size() && save_entry.isNew && !Emu.GetVFS().CreateDir(dir_path))
+	if (psf.size() && save_entry.isNew && !fs::create_dir(dir_path))
 	{
 		// Let's ignore this error for now
+		cellSysutil.warning("savedata_op(): failed to create %s", dir_path);
 	}
 
 	// Enter the loop where the save files are read/created/deleted
@@ -571,15 +566,11 @@ never_inline s32 savedata_op(PPUThread& ppu, u32 operation, u32 version, vm::cpt
 
 		psf.emplace("*" + file_path, fileSet->fileType == CELL_SAVEDATA_FILETYPE_SECUREFILE);
 
-		std::string local_path;
-
-		Emu.GetVFS().GetDevice(dir_path + file_path, local_path);
-
 		switch (const u32 op = fileSet->fileOperation)
 		{
 		case CELL_SAVEDATA_FILEOP_READ:
 		{
-			fs::file file(local_path, fom::read);
+			fs::file file(dir_path + file_path, fom::read);
 			file.seek(fileSet->fileOffset);
 			fileGet->excSize = static_cast<u32>(file.read(fileSet->fileBuf.get_ptr(), std::min<u32>(fileSet->fileSize, fileSet->fileBufSize)));
 			break;
@@ -587,23 +578,23 @@ never_inline s32 savedata_op(PPUThread& ppu, u32 operation, u32 version, vm::cpt
 
 		case CELL_SAVEDATA_FILEOP_WRITE:
 		{
-			fs::file file(local_path, fom::write | fom::create);
+			fs::file file(dir_path + file_path, fom::write | fom::create);
 			file.seek(fileSet->fileOffset);
 			fileGet->excSize = static_cast<u32>(file.write(fileSet->fileBuf.get_ptr(), std::min<u32>(fileSet->fileSize, fileSet->fileBufSize)));
-			file.trunc(file.seek(0, fs::seek_cur)); // truncate
+			file.trunc(file.pos()); // truncate
 			break;
 		}
 
 		case CELL_SAVEDATA_FILEOP_DELETE:
 		{
-			fs::remove_file(local_path);
+			fs::remove_file(dir_path + file_path);
 			fileGet->excSize = 0;
 			break;
 		}
 
 		case CELL_SAVEDATA_FILEOP_WRITE_NOTRUNC:
 		{
-			fs::file file(local_path, fom::write | fom::create);
+			fs::file file(dir_path + file_path, fom::write | fom::create);
 			file.seek(fileSet->fileOffset);
 			fileGet->excSize = static_cast<u32>(file.write(fileSet->fileBuf.get_ptr(), std::min<u32>(fileSet->fileSize, fileSet->fileBufSize)));
 			break;
@@ -620,7 +611,7 @@ never_inline s32 savedata_op(PPUThread& ppu, u32 operation, u32 version, vm::cpt
 	// Write PARAM.SFO
 	if (psf.size())
 	{
-		vfsFile(sfo_path, fom::rewrite).VWrite(psf::save(psf));
+		fs::file(sfo_path, fom::rewrite).write(psf::save(psf));
 	}
 
 	return CELL_OK;

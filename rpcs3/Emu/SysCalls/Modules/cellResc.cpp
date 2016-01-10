@@ -1,11 +1,11 @@
 #include "stdafx.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/System.h"
+#include "Emu/IdManager.h"
 #include "Emu/SysCalls/Modules.h"
 
 #include "cellSysutil.h"
 #include "Emu/SysCalls/Modules/cellVideoOut.h"
-#include "Emu/RSX/GSManager.h"
 #include "Emu/RSX/GSRender.h"
 #include "cellResc.h"
 
@@ -467,7 +467,6 @@ void InitMembers()
 void SetupRsxRenderingStates(vm::ptr<CellGcmContextData>& cntxt)
 {
 	//TODO: use cntxt
-	GSRender& r = Emu.GetGSManager().GetRender();
 
 	// FIXME: only RSX Thread can write rsx::method_registers
 	// Others threads must fill the command buffer or use another
@@ -515,8 +514,7 @@ void SetupRsxRenderingStates(vm::ptr<CellGcmContextData>& cntxt)
 
 void SetupVertexArrays(vm::ptr<CellGcmContextData>& cntxt)
 {
-	GSRender& r = Emu.GetGSManager().GetRender();
-	
+
 	//TODO
 }
 
@@ -537,8 +535,6 @@ void SetupSurfaces(vm::ptr<CellGcmContextData>& cntxt)
 		dstOffset0 = s_rescInternalInstance->m_dstOffsets[s_rescInternalInstance->m_bufIdFront];
 		dstOffset1 = s_rescInternalInstance->m_dstOffsets[s_rescInternalInstance->m_bufIdPalMidNow];
 	}
-
-	GSRender& r = Emu.GetGSManager().GetRender();
 
 	// FIXME: only RSX Thread can write rsx::method_registers
 	// Others threads must fill the command buffer or use another
@@ -1081,21 +1077,21 @@ void cellRescSetFlipHandler(vm::ptr<void(u32)> handler)
 {
 	cellResc.warning("cellRescSetFlipHandler(handler=*0x%x)", handler);
 
-	Emu.GetGSManager().GetRender().flip_handler = handler;
+	fxm::get<GSRender>()->flip_handler = handler;
 }
 
 void cellRescResetFlipStatus()
 {
 	cellResc.trace("cellRescResetFlipStatus()");
 
-	Emu.GetGSManager().GetRender().flip_status = 1;
+	fxm::get<GSRender>()->flip_status = 1;
 }
 
 s32 cellRescGetFlipStatus()
 {
 	cellResc.trace("cellRescGetFlipStatus()");
 
-	return Emu.GetGSManager().GetRender().flip_status;
+	return fxm::get<GSRender>()->flip_status;
 }
 
 s32 cellRescGetRegisterCount()
@@ -1108,7 +1104,7 @@ u64 cellRescGetLastFlipTime()
 {
 	cellResc.trace("cellRescGetLastFlipTime()");
 
-	return Emu.GetGSManager().GetRender().last_flip_time;
+	return fxm::get<GSRender>()->last_flip_time;
 }
 
 s32 cellRescSetRegisterCount()
@@ -1121,7 +1117,7 @@ void cellRescSetVBlankHandler(vm::ptr<void(u32)> handler)
 {
 	cellResc.warning("cellRescSetVBlankHandler(handler=*0x%x)", handler);
 
-	Emu.GetGSManager().GetRender().vblank_handler = handler;
+	fxm::get<GSRender>()->vblank_handler = handler;
 }
 
 u16 FloatToHalf(float val)

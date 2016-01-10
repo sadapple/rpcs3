@@ -12,14 +12,12 @@ SysCallBase sys_rwlock("sys_rwlock");
 
 extern u64 get_system_time();
 
-void lv2_rwlock_t::notify_all(lv2_lock_t& lv2_lock)
+void lv2_rwlock_t::notify_all(lv2_lock_t)
 {
-	CHECK_LV2_LOCK(lv2_lock);
-
 	// pick a new writer if possible; protocol is ignored in current implementation
 	if (!readers && !writer && wsq.size())
 	{
-		writer = wsq.front();
+		writer = std::static_pointer_cast<CPUThread>(wsq.front()->shared_from_this());
 
 		if (!writer->signal())
 		{
@@ -123,7 +121,7 @@ s32 sys_rwlock_rlock(PPUThread& ppu, u32 rw_lock_id, u64 timeout)
 	}
 
 	// add waiter; protocol is ignored in current implementation
-	sleep_queue_entry_t waiter(ppu, rwlock->rsq);
+	sleep_entry<CPUThread> waiter(rwlock->rsq, ppu);
 
 	while (!ppu.unsignal())
 	{
@@ -234,7 +232,7 @@ s32 sys_rwlock_wlock(PPUThread& ppu, u32 rw_lock_id, u64 timeout)
 	}
 
 	// add waiter; protocol is ignored in current implementation
-	sleep_queue_entry_t waiter(ppu, rwlock->wsq);
+	sleep_entry<CPUThread> waiter(rwlock->wsq, ppu);
 
 	while (!ppu.unsignal())
 	{
@@ -249,7 +247,7 @@ s32 sys_rwlock_wlock(PPUThread& ppu, u32 rw_lock_id, u64 timeout)
 				// if the last waiter quit the writer sleep queue, readers must acquire the lock
 				if (!rwlock->writer && rwlock->wsq.size() == 1)
 				{
-					if (rwlock->wsq.front().get() != &ppu)
+					if (rwlock->wsq.front() != &ppu)
 					{
 						throw EXCEPTION("Unexpected");
 					}

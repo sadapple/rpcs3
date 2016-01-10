@@ -11,7 +11,7 @@ thread_local spu_mfc_arg_t raw_spu_mfc[8] = {};
 RawSPUThread::RawSPUThread(const std::string& name, u32 index)
 	: SPUThread(CPU_THREAD_RAW_SPU, name, index, RAW_SPU_BASE_ADDR + RAW_SPU_OFFSET * index)
 {
-	CHECK_ASSERTION(vm::falloc(offset, 0x40000) == offset);
+	ASSERT(vm::falloc(offset, 0x40000) == offset);
 }
 
 bool RawSPUThread::read_reg(const u32 addr, u32& value)

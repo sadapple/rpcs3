@@ -1,10 +1,9 @@
 #include "stdafx.h"
 #include "Emu/Memory/Memory.h"
+#include "Emu/FS/VFS.h"
 #include "Emu/System.h"
 #include "Emu/SysCalls/Modules.h"
 
-#include "Emu/FS/VFS.h"
-#include "Emu/FS/vfsFileBase.h"
 #include "cellUserInfo.h"
 
 extern Module<> cellUserInfo;
@@ -22,24 +21,16 @@ s32 cellUserInfoGetStat(u32 id, vm::ptr<CellUserInfoUserStat> stat)
 		id = 1;
 	}
 
-	char path[256];
-	sprintf(path, "/dev_hdd0/home/%08d", id);
-	if (!Emu.GetVFS().ExistsDir(path))
+	const std::string& path = vfs::get(fmt::format("/dev_hdd0/home/%08d/", id));
+	if (!fs::is_dir(path))
 		return CELL_USERINFO_ERROR_NOUSER;
 
-	sprintf(path, "/dev_hdd0/home/%08d/localusername", id);
-	vfsStream* stream = Emu.GetVFS().OpenFile(path, fom::read);
-	if (!stream || !(stream->IsOpened()))
+	const fs::file f(path + "localusername");
+	if (!f)
 		return CELL_USERINFO_ERROR_INTERNAL;
 
-	char name [CELL_USERINFO_USERNAME_SIZE];
-	memset(name, 0, CELL_USERINFO_USERNAME_SIZE);
-	stream->Read(name, CELL_USERINFO_USERNAME_SIZE);
-	stream->Close();
-	delete stream;
-
 	stat->id = id;
-	memcpy(stat->name, name, CELL_USERINFO_USERNAME_SIZE);
+	strcpy_trunc(stat->name, f.to_string());
 	return CELL_OK;
 }
 

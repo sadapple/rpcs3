@@ -199,8 +199,8 @@ s32 sys_timer_connect_event_queue(u32 timer_id, u32 queue_id, u64 name, u64 data
 
 	LV2_LOCK;
 
-	const auto timer(idm::get<lv2_timer_t>(timer_id));
-	const auto queue(idm::get<lv2_event_queue_t>(queue_id));
+	const auto timer = idm::get<lv2_timer_t>(timer_id);
+	const auto queue = idm::get<lv2_event_queue_t>(queue_id);
 
 	if (!timer || !queue)
 	{

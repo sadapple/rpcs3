@@ -1,16 +1,15 @@
 #include "stdafx.h"
+#include "Utilities/Registry.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/System.h"
-#include "Emu/state.h"
 #include "Emu/IdManager.h"
 #include "Emu/SysCalls/Modules.h"
 #include "Emu/SysCalls/Callback.h"
 
 #include "Emu/SysCalls/lv2/sys_sync.h"
 #include "Emu/SysCalls/lv2/sys_event.h"
-#include "Emu/Event.h"
-#include "Emu/Audio/AudioManager.h"
 #include "Emu/Audio/AudioDumper.h"
+#include "Emu/Audio/AudioThread.h"
 
 #include "cellAudio.h"
 
@@ -21,6 +20,9 @@ extern u64 get_system_time();
 AudioConfig g_audio;
 
 std::shared_ptr<thread_ctrl> g_audio_thread;
+
+const extern cfg::bool_entry g_cfg_audio_dump_to_file("audio/Dump to file");
+const extern cfg::bool_entry g_cfg_audio_convert_to_u16("audio/Convert to 16 bit");
 
 s32 cellAudioInit()
 {
@@ -53,13 +55,7 @@ s32 cellAudioInit()
 	// start audio thread
 	g_audio_thread = thread_ctrl::spawn(PURE_EXPR("Audio Thread"s), []()
 	{
-		const bool do_dump = rpcs3::config.audio.dump_to_file.value();
-
-		AudioDumper m_dump;
-		if (do_dump && !m_dump.Init(2)) // Init AudioDumper for 2 channels
-		{
-			throw EXCEPTION("AudioDumper::Init() failed");
-		}
+		AudioDumper m_dump(g_cfg_audio_dump_to_file ? 2 : 0); // Init AudioDumper for 2 channels if enabled
 
 		float buf2ch[2 * BUFFER_SIZE]; // intermediate buffer for 2 channels
 		float buf8ch[8 * BUFFER_SIZE]; // intermediate buffer for 8 channels
@@ -77,9 +73,9 @@ s32 cellAudioInit()
 
 		scope_thread_t iat(PURE_EXPR("Internal Audio Thread"s), [&out_queue]()
 		{
-			const bool use_u16 = rpcs3::config.audio.convert_to_u16.value();
+			const auto audio = Emu.GetCallbacks().get_audio();
 
-			Emu.GetAudioManager().GetAudioOut().Init();
+			const bool use_u16 = g_cfg_audio_convert_to_u16;
 
 			bool opened = false;
 			float* buffer;
@@ -106,29 +102,27 @@ s32 cellAudioInit()
 
 					if (!opened)
 					{
-						Emu.GetAudioManager().GetAudioOut().Open(buf_u16, out_buffer_size * sizeof(u16));
+						audio->Open(buf_u16, out_buffer_size * sizeof(u16));
 						opened = true;
 					}
 					else
 					{
-						Emu.GetAudioManager().GetAudioOut().AddData(buf_u16, out_buffer_size * sizeof(u16));
+						audio->AddData(buf_u16, out_buffer_size * sizeof(u16));
 					}
 				}
 				else
 				{
 					if (!opened)
 					{
-						Emu.GetAudioManager().GetAudioOut().Open(buffer, out_buffer_size * sizeof(float));
+						audio->Open(buffer, out_buffer_size * sizeof(float));
 						opened = true;
 					}
 					else
 					{
-						Emu.GetAudioManager().GetAudioOut().AddData(buffer, out_buffer_size * sizeof(float));
+						audio->AddData(buffer, out_buffer_size * sizeof(float));
 					}
 				}
 			}
-
-			Emu.GetAudioManager().GetAudioOut().Quit();
 		});
 
 		while (g_audio.state == AUDIO_STATE_INITIALIZED && !Emu.IsStopped())
@@ -364,38 +358,21 @@ s32 cellAudioInit()
 
 				std::lock_guard<std::mutex> lock(g_audio.mutex);
 
-				for (auto key : g_audio.keys)
+				for (u64 key : g_audio.keys)
 				{
-					if (const auto queue = Emu.GetEventManager().GetEventQueue(key))
+					if (auto&& queue = lv2_event_queue_t::find(key))
 					{
 						queue->push(lv2_lock, 0, 0, 0, 0); // TODO: check arguments
 					}
 				}
 			}
 			
-
 			//const u64 stamp3 = get_system_time();
 
-			if (do_dump && !first_mix)
+			switch (m_dump.GetCh())
 			{
-				if (m_dump.GetCh() == 8)
-				{
-					if (m_dump.WriteData(&buf8ch, sizeof(buf8ch)) != sizeof(buf8ch)) // write file data (8 ch)
-					{
-						throw EXCEPTION("AudioDumper::WriteData() failed (8 ch)");
-					}
-				}
-				else if (m_dump.GetCh() == 2)
-				{
-					if (m_dump.WriteData(&buf2ch, sizeof(buf2ch)) != sizeof(buf2ch)) // write file data (2 ch)
-					{
-						throw EXCEPTION("AudioDumper::WriteData() failed (2 ch)");
-					}
-				}
-				else
-				{
-					throw EXCEPTION("AudioDumper::GetCh() returned unknown value (%d)", m_dump.GetCh());
-				}
+			case 2: m_dump.WriteData(&buf2ch, sizeof(buf2ch)); break; // write file data (2 ch)
+			case 8: m_dump.WriteData(&buf8ch, sizeof(buf8ch)); break; // write file data (8 ch)
 			}
 
 			//LOG_NOTICE(HLE, "Audio perf: start=%d (access=%d, AddData=%d, events=%d, dump=%d)",
@@ -738,10 +715,10 @@ s32 cellAudioCreateNotifyEventQueue(vm::ptr<u32> id, vm::ptr<u64> key)
 	{
 		const u64 key_value = 0x80004d494f323221ull + k;
 
-		// register key if not used yet
-		if (const auto queue = Emu.GetEventManager().MakeEventQueue(key_value, SYS_SYNC_FIFO, SYS_PPU_QUEUE, 0, key_value, 32))
+		// Create an event queue bruteforcing an available key
+		if (lv2_event_queue_t::make(SYS_SYNC_FIFO, SYS_PPU_QUEUE, 0, key_value, 32))
 		{
-			*id = queue->id;
+			*id = idm::get_last_id();
 			*key = key_value;
 
 			return CELL_OK;

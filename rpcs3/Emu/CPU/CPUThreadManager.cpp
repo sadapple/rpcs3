@@ -1,6 +1,5 @@
 #include "stdafx.h"
-#include "Emu/Memory/Memory.h"
-#include "Emu/System.h"
+
 #include "Emu/IdManager.h"
 
 #include "Emu/Cell/PPUThread.h"
@@ -8,24 +7,6 @@
 #include "Emu/Cell/RawSPUThread.h"
 #include "Emu/ARMv7/ARMv7Thread.h"
 #include "CPUThreadManager.h"
-
-CPUThreadManager::CPUThreadManager()
-{
-}
-
-CPUThreadManager::~CPUThreadManager()
-{
-}
-
-void CPUThreadManager::Close()
-{
-	std::lock_guard<std::mutex> lock(m_mutex);
-
-	for (auto& x : m_raw_spu)
-	{
-		x.reset();
-	}
-}
 
 std::vector<std::shared_ptr<CPUThread>> CPUThreadManager::GetAllThreads()
 {

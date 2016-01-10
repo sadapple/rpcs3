@@ -1,10 +1,9 @@
-#ifndef PPU_LLVM_RECOMPILER_H
-#define PPU_LLVM_RECOMPILER_H
+#pragma once
 
 #ifdef LLVM_AVAILABLE
+
 #define PPU_LLVM_RECOMPILER 1
 
-#include <list>
 #include "Emu/Cell/PPUDecoder.h"
 #include "Emu/Cell/PPUThread.h"
 #include "Emu/Cell/PPUInterpreter.h"
@@ -22,6 +21,233 @@
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
+
+#define MACRO_PPU_INST_MAIN_EXPANDERS(MACRO) \
+	/*MACRO(HACK)*/ \
+	/*MACRO(TDI)*/ \
+	MACRO(TWI) \
+	MACRO(MULLI) \
+	MACRO(SUBFIC) \
+	MACRO(CMPLI) \
+	MACRO(CMPI) \
+	MACRO(ADDIC) \
+	MACRO(ADDIC_) \
+	MACRO(ADDI) \
+	MACRO(ADDIS) \
+	/*MACRO(BC)*/ \
+	/*MACRO(SC)*/ \
+	/*MACRO(B)*/ \
+	MACRO(RLWIMI) \
+	MACRO(RLWINM) \
+	MACRO(RLWNM) \
+	MACRO(ORI) \
+	MACRO(ORIS) \
+	MACRO(XORI) \
+	MACRO(XORIS) \
+	MACRO(ANDI_) \
+	MACRO(ANDIS_) \
+	MACRO(LWZ) \
+	/*MACRO(LWZU)*/ \
+	MACRO(LBZ) \
+	/*MACRO(LBZU)*/ \
+	MACRO(STW) \
+	/*MACRO(STWU)*/ \
+	/*MACRO(STB)*/ \
+	/*MACRO(STBU)*/ \
+	MACRO(LHZ) \
+	/*MACRO(LHZU)*/ \
+	/*MACRO(LHA)*/ \
+	/*MACRO(LHAU)*/ \
+	/*MACRO(STH)*/ \
+	/*MACRO(STHU)*/ \
+	/*MACRO(LMW)*/ \
+	/*MACRO(STMW)*/ \
+	MACRO(LFS) \
+	/*MACRO(LFSU)*/ \
+	/*MACRO(LFD)*/ \
+	/*MACRO(LFDU)*/ \
+	MACRO(STFS) \
+	/*MACRO(STFSU)*/ \
+	/*MACRO(STFD)*/ \
+	/*MACRO(STFDU)*/ \
+	/*MACRO(LFQ)*/ \
+	/*MACRO(LFQU)*/
+
+#define MACRO_PPU_INST_G_13_EXPANDERS(MACRO) \
+	MACRO(MCRF) \
+	/*MACRO(BCLR)*/ \
+	MACRO(CRNOR) \
+	MACRO(CRANDC) \
+	/*MACRO(ISYNC)*/ \
+	MACRO(CRXOR) \
+	MACRO(CRNAND) \
+	MACRO(CRAND) \
+	MACRO(CREQV) \
+	MACRO(CRORC) \
+	MACRO(CROR) \
+	/*MACRO(BCCTR)*/
+
+#define MACRO_PPU_INST_G_1E_EXPANDERS(MACRO) \
+	MACRO(RLDICL) \
+	MACRO(RLDICR) \
+	MACRO(RLDIC) \
+	MACRO(RLDIMI) \
+	MACRO(RLDC_LR)
+
+#define MACRO_PPU_INST_G_1F_EXPANDERS(MACRO) \
+	MACRO(CMP) \
+	/*MACRO(TW)*/ \
+	/*MACRO(LVSL)*/ \
+	/*MACRO(LVEBX)*/ \
+	/*MACRO(SUBFC)*/ \
+	/*MACRO(MULHDU)*/ \
+	/*MACRO(ADDC)*/ \
+	/*MACRO(MULHWU)*/ \
+	MACRO(MFOCRF) \
+	MACRO(LWARX) \
+	/*MACRO(LDX)*/ \
+	/*MACRO(LWZX)*/ \
+	/*MACRO(CNTLZW)*/ \
+	/*MACRO(SLD)*/ \
+	MACRO(AND) \
+	MACRO(CMPL) \
+	/*MACRO(LVSR)*/ \
+	/*MACRO(LVEHX)*/ \
+	MACRO(SUBF) \
+	/*MACRO(LDUX)*/ \
+	/*MACRO(DCBST)*/ \
+	/*MACRO(LWZUX)*/ \
+	/*MACRO(CNTLZD)*/ \
+	/*MACRO(ANDC)*/ \
+	/*MACRO(TD)*/ \
+	/*MACRO(LVEWX)*/ \
+	/*MACRO(MULHD) \
+	MACRO(MULHW) \
+	MACRO(LDARX) \
+	MACRO(DCBF) \
+	MACRO(LBZX) \
+	MACRO(LVX)*/ \
+	MACRO(NEG) \
+	/*MACRO(LBZUX) \
+	MACRO(NOR) \
+	MACRO(STVEBX) \
+	MACRO(SUBFE) \
+	MACRO(ADDE)*/ \
+	MACRO(MTOCRF) \
+	/*MACRO(STDX)*/ \
+	MACRO(STWCX_) \
+	/*MACRO(STWX) \
+	MACRO(STVEHX) \
+	MACRO(STDUX) \
+	MACRO(STWUX) \
+	MACRO(STVEWX) \
+	MACRO(SUBFZE) \
+	MACRO(ADDZE) \
+	MACRO(STDCX_) \
+	MACRO(STBX) \
+	MACRO(STVX) \
+	MACRO(SUBFME) \
+	MACRO(MULLD) \
+	MACRO(ADDME)*/ \
+	MACRO(MULLW) \
+	/*MACRO(DCBTST) \
+	MACRO(STBUX) \
+	MACRO(DOZ)*/ \
+	MACRO(ADD) \
+	/*MACRO(DCBT) \
+	MACRO(LHZX) \
+	MACRO(EQV) \
+	MACRO(ECIWX) \
+	MACRO(LHZUX) \
+	MACRO(XOR)*/ \
+	/*MACRO(MFSPR)*/ \
+	/*MACRO(LWAX) \
+	MACRO(DST) \
+	MACRO(LHAX) \
+	MACRO(LVXL) \
+	MACRO(MFTB) \
+	MACRO(LWAUX) \
+	MACRO(DSTST) \
+	MACRO(LHAUX) \
+	MACRO(STHX) \
+	MACRO(ORC) \
+	MACRO(ECOWX) \
+	MACRO(STHUX)*/ \
+	MACRO(OR) \
+	/*MACRO(DIVDU)*/ \
+	MACRO(DIVWU) \
+	/*MACRO(MTSPR)*/ \
+	/*MACRO(DCBI) \
+	MACRO(NAND) \
+	MACRO(STVXL) \
+	MACRO(DIVD)*/ \
+	MACRO(DIVW) \
+	/*MACRO(LVLX) \
+	MACRO(SUBFCO) \
+	MACRO(ADDCO) \
+	MACRO(LDBRX) \
+	MACRO(LSWX) \
+	MACRO(SRW) \
+	MACRO(SRD) \
+	MACRO(LVRX) \
+	MACRO(SUBFO) \
+	MACRO(LFSUX) \
+	MACRO(LSWI) \
+	MACRO(SYNC) \
+	MACRO(LFDX) \
+	MACRO(NEGO) \
+	MACRO(LFDUX) \
+	MACRO(STVLX) \
+	MACRO(SUBFEO) \
+	MACRO(ADDEO) \
+	MACRO(STDBRX) \
+	MACRO(STSWX) \
+	MACRO(STWBRX) \
+	MACRO(STFSX) \
+	MACRO(STVRX) \
+	MACRO(STFSUX) \
+	MACRO(SUBFZEO) \
+	MACRO(ADDZEO) \
+	MACRO(STSWI) \
+	MACRO(STFDX) \
+	MACRO(SUBFMEO) \
+	MACRO(MULLDO) \
+	MACRO(ADDMEO) \
+	MACRO(MULLWO) \
+	MACRO(STFDUX) \
+	MACRO(LVLXL) \
+	MACRO(ADDO) \
+	MACRO(LHBRX) \
+	MACRO(SRAW) \
+	MACRO(SRAD) \
+	MACRO(LVRXL) \
+	MACRO(DSS)*/ \
+	MACRO(SRAWI) \
+	/*MACRO(SRADI1) \
+	MACRO(SRADI2) \
+	MACRO(EIEIO) \
+	MACRO(STVLXL) \
+	MACRO(STHBRX) \
+	MACRO(EXTSH) \
+	MACRO(STVRXL)*/ \
+	MACRO(EXTSB) \
+	/*MACRO(DIVDUO) \
+	MACRO(DIVWUO) \
+	MACRO(STFIWX)*/ \
+	MACRO(EXTSW) \
+	/*MACRO(ICBI) \
+	MACRO(DIVDO) \
+	MACRO(DIVWO) \
+	MACRO(DCBZ)*/
+
+#define MACRO_PPU_INST_G_3A_EXPANDERS(MACRO) \
+	MACRO(LD) \
+	/*MACRO(LDU)*/ \
+	/*MACRO(LWA)*/
+
+#define MACRO_PPU_INST_G_3E_EXPANDERS(MACRO) \
+	MACRO(STD) \
+	MACRO(STDU)
 
 namespace ppu_recompiler_llvm {
 	enum ExecutionStatus
@@ -697,10 +923,8 @@ namespace ppu_recompiler_llvm {
 				return m_ir_builder->getInt8PtrTy();
 			}
 			else {
-				assert(0);
+				throw std::runtime_error("Invalid type" HERE);
 			}
-
-			return nullptr;
 		}
 
 		/// Call a function
@@ -943,4 +1167,3 @@ namespace ppu_recompiler_llvm {
 }
 
 #endif // LLVM_AVAILABLE
-#endif // PPU_LLVM_RECOMPILER_H

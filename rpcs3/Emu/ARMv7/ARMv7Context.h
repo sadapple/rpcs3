@@ -151,7 +151,7 @@ struct ARMv7Context
 
 	void write_gpr(u32 n, u32 value, u32 size)
 	{
-		assert(n < 16);
+		Expects(n < 16);
 
 		if (n < 15)
 		{
@@ -165,7 +165,7 @@ struct ARMv7Context
 
 	u32 read_gpr(u32 n)
 	{
-		assert(n < 16);
+		Expects(n < 16);
 
 		if (n < 15)
 		{
@@ -178,7 +178,7 @@ struct ARMv7Context
 	// function for processing va_args in printf-like functions
 	u32 get_next_gpr_arg(u32& g_count, u32& f_count, u32& v_count)
 	{
-		assert(!f_count && !v_count); // not supported
+		ASSERT(!f_count && !v_count); // not supported
 
 		if (g_count < 4)
 		{

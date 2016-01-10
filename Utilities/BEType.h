@@ -6,8 +6,6 @@
 #include <x86intrin.h>
 #endif
 
-#define IS_LE_MACHINE // only draft
-
 union v128
 {
 	template<typename T, std::size_t N, std::size_t M> class masked_array_t // array type accessed as (index ^ M)

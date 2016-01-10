@@ -51,3 +51,9 @@ struct CellMouseDataList
 };
 
 static const u32 CELL_MOUSE_MAX_CODES = 64;
+
+struct CellMouseRawData
+{
+	be_t<s32> len;
+	u8 data[CELL_MOUSE_MAX_CODES];
+};

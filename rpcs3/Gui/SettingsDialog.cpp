@@ -1,96 +1,133 @@
 #include "stdafx.h"
 #include "stdafx_gui.h"
-
+#include "Utilities/Registry.h"
 #include "Emu/System.h"
-#include "Emu/state.h"
-#include "Emu/SysCalls/Modules/cellVideoOut.h"
-#include "SettingsDialog.h"
 
-#ifdef _WIN32
-#include <windows.h>
-#include <iphlpapi.h>
-#pragma comment(lib, "iphlpapi.lib")
-
-#undef GetHwnd
 #ifdef _MSC_VER
+#include <Windows.h>
+#undef GetHwnd
 #include <d3d12.h>
 #include <wrl/client.h>
 #include <dxgi1_4.h>
 #endif
-#else
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <ifaddrs.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#endif
 
-std::vector<std::string> GetAdapters()
+#include "SettingsDialog.h"
+
+// Connects wx gui element to the property value; abstract base class
+struct property_adapter
 {
-	std::vector<std::string> adapters;
-#ifdef _WIN32
-	PIP_ADAPTER_INFO pAdapterInfo;
-	pAdapterInfo = (IP_ADAPTER_INFO*)malloc(sizeof(IP_ADAPTER_INFO));
-	ULONG buflen = sizeof(IP_ADAPTER_INFO);
+	const std::string name;
 
-	if (GetAdaptersInfo(pAdapterInfo, &buflen) == ERROR_BUFFER_OVERFLOW)
+	property_adapter(const std::string& name)
+		: name(name)
 	{
-		free(pAdapterInfo);
-		pAdapterInfo = (IP_ADAPTER_INFO*)malloc(buflen);
 	}
 
-	if (GetAdaptersInfo(pAdapterInfo, &buflen) == NO_ERROR)
+	virtual void save() = 0;
+};
+
+struct radiobox_pad_helper
+{
+	const std::string name;
+	wxArrayString values;
+
+	radiobox_pad_helper(const std::string& name)
+		: name(name)
 	{
-		PIP_ADAPTER_INFO pAdapter = pAdapterInfo;
-		while (pAdapter)
+		for (const auto& v : cfg::get_values(name))
 		{
-			adapters.emplace_back(pAdapter->Description);
-			pAdapter = pAdapter->Next;
-		}
-	}
-	else
-	{
-		LOG_ERROR(HLE, "Call to GetAdaptersInfo failed.");
-	}
-#else
-	struct ifaddrs *ifaddr, *ifa;
-	int family, s, n;
-	char host[NI_MAXHOST];
-
-	if (getifaddrs(&ifaddr) == -1)
-	{
-		LOG_ERROR(HLE, "Call to getifaddrs returned negative.");
-	}
-
-	for (ifa = ifaddr, n = 0; ifa != NULL; ifa = ifa->ifa_next, n++)
-	{
-		if (ifa->ifa_addr == NULL)
-		{
-			continue;
-		}
-
-		family = ifa->ifa_addr->sa_family;
-
-		if (family == AF_INET || family == AF_INET6)
-		{
-			adapters.emplace_back(ifa->ifa_name);
+			values.Add(fmt::FromUTF8(v));
 		}
 	}
 
-	freeifaddrs(ifaddr);
-#endif
+	operator const wxArrayString&() const
+	{
+		return values;
+	}
+};
 
-	return adapters;
-}
+struct radiobox_pad : property_adapter
+{
+	wxRadioBox*& ptr;
+
+	radiobox_pad(const radiobox_pad_helper& helper, wxRadioBox*& ptr)
+		: property_adapter(helper.name)
+		, ptr(ptr)
+	{
+		ptr->SetSelection(static_cast<int>(cfg::to_index(name)));
+	}
+
+	void save() override
+	{
+		ASSERT(cfg::from_index(name, ptr->GetSelection()));
+	}
+};
+
+struct combobox_pad : property_adapter
+{
+	wxComboBox*& ptr;
+
+	combobox_pad(const std::string& name, wxComboBox*& ptr)
+		: property_adapter(name)
+		, ptr(ptr)
+	{
+		for (const auto& v : cfg::get_values(name))
+		{
+			ptr->Append(fmt::FromUTF8(v));
+		}
+
+		//ptr->SetSelection(static_cast<int>(cfg::to_index(name)));
+		ptr->SetValue(fmt::FromUTF8(cfg::to_string(name)));
+	}
+
+	void save() override
+	{
+		//ASSERT(cfg::from_index(name, ptr->GetSelection()));
+		ASSERT(cfg::from_string(name, fmt::ToUTF8(ptr->GetValue())));
+	}
+};
+
+struct checkbox_pad : property_adapter
+{
+	wxCheckBox*& ptr;
+
+	checkbox_pad(const std::string& name, wxCheckBox*& ptr)
+		: property_adapter(name)
+		, ptr(ptr)
+	{
+		ptr->SetValue(cfg::to_bool(name));
+	}
+
+	void save() override
+	{
+		ASSERT(cfg::from_bool(name, ptr->GetValue()));
+	}
+};
+
+struct textctrl_pad : property_adapter
+{
+	wxTextCtrl*& ptr;
+
+	textctrl_pad(const std::string& name, wxTextCtrl*& ptr)
+		: property_adapter(name)
+		, ptr(ptr)
+	{
+		ptr->SetValue(fmt::FromUTF8(cfg::to_string(name)));
+	}
+
+	void save() override
+	{
+		ASSERT(cfg::from_string(name, fmt::ToUTF8(ptr->GetValue())));
+	}
+};
 
 
-SettingsDialog::SettingsDialog(wxWindow *parent, rpcs3::config_t* cfg)
+SettingsDialog::SettingsDialog(wxWindow* parent)
 	: wxDialog(parent, wxID_ANY, "Settings", wxDefaultPosition)
 {
+	std::vector<std::unique_ptr<property_adapter>> pads;
+
 	const bool was_running = Emu.Pause();
-	if (was_running || Emu.IsReady()) cfg = &rpcs3::state.config;
 
 	static const u32 width = 458;
 	static const u32 height = 400;
@@ -176,7 +213,6 @@ SettingsDialog::SettingsDialog(wxWindow *parent, rpcs3::config_t* cfg)
 	wxComboBox* cbox_audio_out = new wxComboBox(p_audio, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(150, -1), 0, NULL, wxCB_READONLY);
 	wxComboBox* cbox_hle_loglvl = new wxComboBox(p_misc, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(150, -1), 0, NULL, wxCB_READONLY);
 	wxComboBox* cbox_net_status = new wxComboBox(p_networking, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0, NULL, wxCB_READONLY);
-	wxComboBox* cbox_net_interface = new wxComboBox(p_networking, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0, NULL, wxCB_READONLY);
 	wxComboBox* cbox_sys_lang = new wxComboBox(p_system, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0, NULL, wxCB_READONLY);
 
 	wxCheckBox* chbox_core_llvm_exclud = new wxCheckBox(p_core, wxID_ANY, "Compiled blocks exclusion");
@@ -193,10 +229,8 @@ SettingsDialog::SettingsDialog(wxWindow *parent, rpcs3::config_t* cfg)
 	wxCheckBox* chbox_gs_overlay = new wxCheckBox(p_graphics, wxID_ANY, "Debug overlay");
 	wxCheckBox* chbox_audio_dump = new wxCheckBox(p_audio, wxID_ANY, "Dump to file");
 	wxCheckBox* chbox_audio_conv = new wxCheckBox(p_audio, wxID_ANY, "Convert to 16 bit");
-	wxCheckBox* chbox_rsx_logging = new wxCheckBox(p_misc, wxID_ANY, "RSX Logging");
 	wxCheckBox* chbox_hle_exitonstop = new wxCheckBox(p_misc, wxID_ANY, "Exit RPCS3 when process finishes");
 	wxCheckBox* chbox_hle_always_start = new wxCheckBox(p_misc, wxID_ANY, "Always start after boot");
-	wxCheckBox* chbox_hle_use_default_ini = new wxCheckBox(p_misc, wxID_ANY, "Use default configuration");
 
 	wxTextCtrl* txt_dbg_range_min = new wxTextCtrl(p_core, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(55, 20));
 	wxTextCtrl* txt_dbg_range_max = new wxTextCtrl(p_core, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(55, 20));
@@ -206,168 +240,77 @@ SettingsDialog::SettingsDialog(wxWindow *parent, rpcs3::config_t* cfg)
 	wxCheckBox* chbox_dbg_ap_systemcall = new wxCheckBox(p_misc, wxID_ANY, "Auto Pause at System Call");
 	wxCheckBox* chbox_dbg_ap_functioncall = new wxCheckBox(p_misc, wxID_ANY, "Auto Pause at Function Call");
 
-	//Custom EmulationDir
-	wxCheckBox* chbox_emulationdir_enable = new wxCheckBox(p_system, wxID_ANY, "Use path below as EmulationDir. (Restart required)");
-	wxTextCtrl* txt_emulationdir_path = new wxTextCtrl(p_system, wxID_ANY, fs::get_executable_dir());
-
-
-	wxArrayString ppu_decoder_modes;
-	ppu_decoder_modes.Add("Interpreter");
-	ppu_decoder_modes.Add("Interpreter 2");
-	ppu_decoder_modes.Add("Recompiler (LLVM)");
+	radiobox_pad_helper ppu_decoder_modes("core/PPU Decoder");
 	rbox_ppu_decoder = new wxRadioBox(p_core, wxID_ANY, "PPU Decoder", wxDefaultPosition, wxSize(215, -1), ppu_decoder_modes, 1);
+	pads.emplace_back(std::make_unique<radiobox_pad>(ppu_decoder_modes, rbox_ppu_decoder));
 
-#if !defined(LLVM_AVAILABLE)
-	rbox_ppu_decoder->Enable(2, false);
-#endif
-
-	wxArrayString spu_decoder_modes;
-	spu_decoder_modes.Add("Interpreter (precise)");
-	spu_decoder_modes.Add("Interpreter (fast)");
-	spu_decoder_modes.Add("Recompiler (ASMJIT)");
+	radiobox_pad_helper spu_decoder_modes("core/SPU Decoder");
 	rbox_spu_decoder = new wxRadioBox(p_core, wxID_ANY, "SPU Decoder", wxDefaultPosition, wxSize(215, -1), spu_decoder_modes, 1);
-
-	cbox_gs_render->Append("Null");
-	cbox_gs_render->Append("OpenGL");
+	pads.emplace_back(std::make_unique<radiobox_pad>(spu_decoder_modes, rbox_spu_decoder));
 
 #ifdef _MSC_VER
-	Microsoft::WRL::ComPtr<IDXGIFactory4> dxgiFactory;
-	Microsoft::WRL::ComPtr<IDXGIAdapter> adapter;
+	Microsoft::WRL::ComPtr<IDXGIFactory4> dxgi_factory;
 
-	if (SUCCEEDED(CreateDXGIFactory(IID_PPV_ARGS(&dxgiFactory))))
+	if (SUCCEEDED(CreateDXGIFactory(IID_PPV_ARGS(&dxgi_factory))))
 	{
-		cbox_gs_render->Append("DirectX 12");
+		Microsoft::WRL::ComPtr<IDXGIAdapter> adapter;
 
-		for (uint id = 0; dxgiFactory->EnumAdapters(id, adapter.GetAddressOf()) != DXGI_ERROR_NOT_FOUND; id++)
+		for (UINT id = 0; dxgi_factory->EnumAdapters(id, adapter.ReleaseAndGetAddressOf()) != DXGI_ERROR_NOT_FOUND; id++)
 		{
-			DXGI_ADAPTER_DESC adapterDesc;
-			adapter->GetDesc(&adapterDesc);
-			cbox_gs_d3d_adaptater->Append(adapterDesc.Description);
+			DXGI_ADAPTER_DESC desc;
+			adapter->GetDesc(&desc);
+			cbox_gs_d3d_adaptater->Append(desc.Description);
 		}
 	}
 	else
+#endif
 	{
 		cbox_gs_d3d_adaptater->Enable(false);
-		chbox_gs_overlay->Enable(false);
-	}
-#endif
-
-	for (int i = 1; i < WXSIZEOF(ResolutionTable); ++i)
-	{
-		cbox_gs_resolution->Append(wxString::Format("%dx%d", ResolutionTable[i].width.value(), ResolutionTable[i].height.value()));
 	}
 
-	cbox_gs_aspect->Append("4:3");
-	cbox_gs_aspect->Append("16:9");
+	pads.emplace_back(std::make_unique<combobox_pad>("rsx/Resolution", cbox_gs_resolution));
+	pads.emplace_back(std::make_unique<combobox_pad>("rsx/Aspect ratio", cbox_gs_aspect));
+	pads.emplace_back(std::make_unique<combobox_pad>("rsx/Frame limit", cbox_gs_frame_limit));
+	pads.emplace_back(std::make_unique<combobox_pad>("rsx/Renderer", cbox_gs_render));
 
-	for (auto item : { "Off", "50", "59.94", "30", "60", "Auto" })
-		cbox_gs_frame_limit->Append(item);
+	pads.emplace_back(std::make_unique<combobox_pad>("io/Pad Handler", cbox_pad_handler));
+	pads.emplace_back(std::make_unique<combobox_pad>("io/Keyboard Handler", cbox_keyboard_handler));
+	pads.emplace_back(std::make_unique<combobox_pad>("io/Mouse Handler", cbox_mouse_handler));
+	pads.emplace_back(std::make_unique<combobox_pad>("audio/Audio Out", cbox_audio_out));
 
-	cbox_pad_handler->Append("Null");
-	cbox_pad_handler->Append("Windows");
-#ifdef _MSC_VER
-	cbox_pad_handler->Append("XInput");
-#endif
+	pads.emplace_back(std::make_unique<combobox_pad>("io/Camera", cbox_camera));
+	pads.emplace_back(std::make_unique<combobox_pad>("io/Camera type", cbox_camera_type));
 
-	//cbox_pad_handler->Append("DirectInput");
+	pads.emplace_back(std::make_unique<combobox_pad>("misc/log/Log Level", cbox_hle_loglvl));
+	pads.emplace_back(std::make_unique<combobox_pad>("misc/net/Connection status", cbox_net_status));
 
-	cbox_keyboard_handler->Append("Null");
-	cbox_keyboard_handler->Append("Windows");
-	//cbox_keyboard_handler->Append("DirectInput");
+	pads.emplace_back(std::make_unique<combobox_pad>("sys/Language", cbox_sys_lang));
 
-	cbox_mouse_handler->Append("Null");
-	cbox_mouse_handler->Append("Windows");
-	//cbox_mouse_handler->Append("DirectInput");
-
-	cbox_audio_out->Append("Null");
-	cbox_audio_out->Append("OpenAL");
-#ifdef _MSC_VER
-	cbox_audio_out->Append("XAudio2");
-#endif
-
-	cbox_camera->Append("Null");
-	cbox_camera->Append("Connected");
-
-	cbox_camera_type->Append("Unknown");
-	cbox_camera_type->Append("EyeToy");
-	cbox_camera_type->Append("PlayStation Eye");
-	cbox_camera_type->Append("USB Video Class 1.1");
-
-	cbox_hle_loglvl->Append("Nothing");
-	cbox_hle_loglvl->Append("Fatal");
-	cbox_hle_loglvl->Append("Error");
-	cbox_hle_loglvl->Append("TODO");
-	cbox_hle_loglvl->Append("Success");
-	cbox_hle_loglvl->Append("Warning");
-	cbox_hle_loglvl->Append("Notice");
-	cbox_hle_loglvl->Append("All");
-
-	cbox_net_status->Append("IP Obtained");
-	cbox_net_status->Append("Obtaining IP");
-	cbox_net_status->Append("Connecting");
-	cbox_net_status->Append("Disconnected");
-
-	for(const auto& adapterName : GetAdapters())
-		cbox_net_interface->Append(adapterName);
-
-	static wxString s_langs[] =
-	{
-		"Japanese", "English (US)", "French", "Spanish", "German",
-		"Italian", "Dutch", "Portuguese (PT)", "Russian",
-		"Korean", "Chinese (Trad.)", "Chinese (Simp.)", "Finnish",
-		"Swedish", "Danish", "Norwegian", "Polish", "English (UK)"
-	};
-
-	for (const auto& lang : s_langs)
-		cbox_sys_lang->Append(lang);
-
-	chbox_core_llvm_exclud->SetValue(cfg->core.llvm.exclusion_range.value());
-	chbox_gs_log_prog->SetValue(rpcs3::config.rsx.log_programs.value());
-	chbox_gs_dump_depth->SetValue(cfg->rsx.opengl.write_depth_buffer.value());
-	chbox_gs_dump_color->SetValue(cfg->rsx.opengl.write_color_buffers.value());
-	chbox_gs_read_color->SetValue(cfg->rsx.opengl.read_color_buffers.value());
-	chbox_gs_read_depth->SetValue(cfg->rsx.opengl.read_depth_buffer.value());
-	chbox_gs_vsync->SetValue(rpcs3::config.rsx.vsync.value());
-	chbox_gs_debug_output->SetValue(cfg->rsx.d3d12.debug_output.value());
-	chbox_gs_3dmonitor->SetValue(rpcs3::config.rsx._3dtv.value());
-	chbox_gs_overlay->SetValue(cfg->rsx.d3d12.overlay.value());
-	chbox_audio_dump->SetValue(rpcs3::config.audio.dump_to_file.value());
-	chbox_audio_conv->SetValue(rpcs3::config.audio.convert_to_u16.value());
-	chbox_rsx_logging->SetValue(rpcs3::config.misc.log.rsx_logging.value());
-	chbox_hle_exitonstop->SetValue(rpcs3::config.misc.exit_on_stop.value());
-	chbox_hle_always_start->SetValue(rpcs3::config.misc.always_start.value());
-	chbox_hle_use_default_ini->SetValue(rpcs3::config.misc.use_default_ini.value());
-	chbox_core_hook_stfunc->SetValue(cfg->core.hook_st_func.value());
-	chbox_core_load_liblv2->SetValue(cfg->core.load_liblv2.value());
+	pads.emplace_back(std::make_unique<checkbox_pad>("core/llvm/Compiled blocks exclusion", chbox_core_llvm_exclud));
+	pads.emplace_back(std::make_unique<checkbox_pad>("rsx/Log shader programs", chbox_gs_log_prog));
+	pads.emplace_back(std::make_unique<checkbox_pad>("rsx/Write Depth Buffer", chbox_gs_dump_depth));
+	pads.emplace_back(std::make_unique<checkbox_pad>("rsx/Write Color Buffers", chbox_gs_dump_color));
+	pads.emplace_back(std::make_unique<checkbox_pad>("rsx/Read Color Buffers", chbox_gs_read_color));
+	pads.emplace_back(std::make_unique<checkbox_pad>("rsx/Read Depth Buffer", chbox_gs_read_depth));
+	pads.emplace_back(std::make_unique<checkbox_pad>("rsx/VSync", chbox_gs_vsync));
+	pads.emplace_back(std::make_unique<checkbox_pad>("rsx/Debug Output", chbox_gs_debug_output));
+	pads.emplace_back(std::make_unique<checkbox_pad>("rsx/3D Monitor", chbox_gs_3dmonitor));
+	pads.emplace_back(std::make_unique<checkbox_pad>("rsx/Debug Overlay", chbox_gs_overlay));
+	pads.emplace_back(std::make_unique<checkbox_pad>("audio/Dump to file", chbox_audio_dump));
+	pads.emplace_back(std::make_unique<checkbox_pad>("audio/Convert to 16 bit", chbox_audio_conv));
+	pads.emplace_back(std::make_unique<checkbox_pad>("misc/Exit RPCS3 when process finishes", chbox_hle_exitonstop));
+	pads.emplace_back(std::make_unique<checkbox_pad>("misc/Always start after boot", chbox_hle_always_start));
+	pads.emplace_back(std::make_unique<checkbox_pad>("core/Hook static functions", chbox_core_hook_stfunc));
+	pads.emplace_back(std::make_unique<checkbox_pad>("core/Load liblv2.sprx", chbox_core_load_liblv2));
 
 	//Auto Pause related
-	chbox_dbg_ap_systemcall->SetValue(rpcs3::config.misc.debug.auto_pause_syscall.value());
-	chbox_dbg_ap_functioncall->SetValue(rpcs3::config.misc.debug.auto_pause_func_call.value());
+	pads.emplace_back(std::make_unique<checkbox_pad>("misc/debug/Auto Pause at System Call", chbox_dbg_ap_systemcall));
+	pads.emplace_back(std::make_unique<checkbox_pad>("misc/debug/Auto Pause at Function Call", chbox_dbg_ap_functioncall));
 
-	//Custom EmulationDir
-	chbox_emulationdir_enable->SetValue(rpcs3::config.system.emulation_dir_path_enable.value());
-	txt_emulationdir_path->SetValue(rpcs3::config.system.emulation_dir_path.value());
-
-	rbox_ppu_decoder->SetSelection((int)cfg->core.ppu_decoder.value());
-	txt_dbg_range_min->SetValue(cfg->core.llvm.min_id.string_value());
-	txt_dbg_range_max->SetValue(cfg->core.llvm.max_id.string_value());
-	txt_llvm_threshold->SetValue(cfg->core.llvm.threshold.string_value());
-	rbox_spu_decoder->SetSelection((int)cfg->core.spu_decoder.value());
-	cbox_gs_render->SetSelection((int)cfg->rsx.renderer.value());
-	cbox_gs_d3d_adaptater->SetSelection(cfg->rsx.d3d12.adaptater.value());
-	cbox_gs_resolution->SetSelection(ResolutionIdToNum((int)cfg->rsx.resolution.value()) - 1);
-	cbox_gs_aspect->SetSelection((int)cfg->rsx.aspect_ratio.value() - 1);
-	cbox_gs_frame_limit->SetSelection((int)cfg->rsx.frame_limit.value());
-	cbox_pad_handler->SetSelection((int)cfg->io.pad_handler_mode.value());
-	cbox_keyboard_handler->SetSelection((int)cfg->io.keyboard_handler_mode.value());
-	cbox_mouse_handler->SetSelection((int)cfg->io.mouse_handler_mode.value());
-	cbox_audio_out->SetSelection((int)cfg->audio.out.value());
-	cbox_camera->SetSelection((int)cfg->io.camera.value());
-	cbox_camera_type->SetSelection((int)cfg->io.camera_type.value());
-	cbox_hle_loglvl->SetSelection((int)rpcs3::config.misc.log.level.value());
-	cbox_net_status->SetSelection((int)rpcs3::config.misc.net.status.value());
-	cbox_net_interface->SetSelection((int)rpcs3::config.misc.net._interface.value());
-	cbox_sys_lang->SetSelection((int)rpcs3::config.system.language.value());
+	pads.emplace_back(std::make_unique<textctrl_pad>("core/llvm/Excluded block range min", txt_dbg_range_min));
+	pads.emplace_back(std::make_unique<textctrl_pad>("core/llvm/Excluded block range max", txt_dbg_range_max));
+	pads.emplace_back(std::make_unique<textctrl_pad>("core/llvm/Compilation threshold", txt_llvm_threshold));
+	pads.emplace_back(std::make_unique<combobox_pad>("rsx/d3d12/D3D Adaptater", cbox_gs_d3d_adaptater));
 
 	// Core
 	s_round_llvm->Add(chbox_core_llvm_exclud, wxSizerFlags().Border(wxALL, 5).Expand());
@@ -398,7 +341,6 @@ SettingsDialog::SettingsDialog(wxWindow *parent, rpcs3::config_t* cfg)
 
 	// Networking
 	s_round_net_status->Add(cbox_net_status, wxSizerFlags().Border(wxALL, 5).Expand());
-	s_round_net_interface->Add(cbox_net_interface, wxSizerFlags().Border(wxALL, 5).Expand());
 
 	s_round_sys_lang->Add(cbox_sys_lang, wxSizerFlags().Border(wxALL, 5).Expand());
 
@@ -446,10 +388,8 @@ SettingsDialog::SettingsDialog(wxWindow *parent, rpcs3::config_t* cfg)
 
 	// Miscellaneous
 	s_subpanel_misc->Add(s_round_hle_log_lvl, wxSizerFlags().Border(wxALL, 5).Expand());
-	s_subpanel_misc->Add(chbox_rsx_logging, wxSizerFlags().Border(wxALL, 5).Expand());
 	s_subpanel_misc->Add(chbox_hle_exitonstop, wxSizerFlags().Border(wxALL, 5).Expand());
 	s_subpanel_misc->Add(chbox_hle_always_start, wxSizerFlags().Border(wxALL, 5).Expand());
-	s_subpanel_misc->Add(chbox_hle_use_default_ini, wxSizerFlags().Border(wxALL, 5).Expand());
 
 	// Auto Pause
 	s_subpanel_misc->Add(chbox_dbg_ap_systemcall, wxSizerFlags().Border(wxALL, 5).Expand());
@@ -461,10 +401,6 @@ SettingsDialog::SettingsDialog(wxWindow *parent, rpcs3::config_t* cfg)
 
 	// System
 	s_subpanel_system->Add(s_round_sys_lang, wxSizerFlags().Border(wxALL, 5).Expand());
-
-	// Custom EmulationDir
-	s_subpanel_system->Add(chbox_emulationdir_enable, wxSizerFlags().Border(wxALL, 5).Expand());
-	s_subpanel_system->Add(txt_emulationdir_path, wxSizerFlags().Border(wxALL, 5).Expand());
 
 	// Buttons
 	wxBoxSizer* s_b_panel(new wxBoxSizer(wxHORIZONTAL));
@@ -485,64 +421,10 @@ SettingsDialog::SettingsDialog(wxWindow *parent, rpcs3::config_t* cfg)
 
 	if (ShowModal() == wxID_OK)
 	{
-		long llvmthreshold;
-		long minllvmid, maxllvmid;
-		txt_dbg_range_min->GetValue().ToLong(&minllvmid);
-		txt_dbg_range_max->GetValue().ToLong(&maxllvmid);
-		txt_llvm_threshold->GetValue().ToLong(&llvmthreshold);
-
-		// individual settings
-		cfg->core.ppu_decoder = rbox_ppu_decoder->GetSelection();
-		cfg->core.llvm.exclusion_range = chbox_core_llvm_exclud->GetValue();
-		cfg->core.llvm.min_id = minllvmid;
-		cfg->core.llvm.max_id = maxllvmid;
-		cfg->core.llvm.threshold = llvmthreshold;
-		cfg->core.spu_decoder = rbox_spu_decoder->GetSelection();
-		cfg->core.hook_st_func = chbox_core_hook_stfunc->GetValue();
-		cfg->core.load_liblv2 = chbox_core_load_liblv2->GetValue();
-
-		cfg->rsx.renderer = cbox_gs_render->GetSelection();
-		cfg->rsx.d3d12.adaptater = cbox_gs_d3d_adaptater->GetSelection();
-		cfg->rsx.resolution = ResolutionNumToId(cbox_gs_resolution->GetSelection() + 1);
-		cfg->rsx.aspect_ratio = cbox_gs_aspect->GetSelection() + 1;
-		cfg->rsx.frame_limit = cbox_gs_frame_limit->GetSelection();
-		cfg->rsx.opengl.write_depth_buffer = chbox_gs_dump_depth->GetValue();
-		cfg->rsx.opengl.write_color_buffers = chbox_gs_dump_color->GetValue();
-		cfg->rsx.opengl.read_color_buffers = chbox_gs_read_color->GetValue();
-		cfg->rsx.opengl.read_depth_buffer = chbox_gs_read_depth->GetValue();
-
-		cfg->audio.out = cbox_audio_out->GetSelection();
-
-		cfg->io.pad_handler_mode = cbox_pad_handler->GetSelection();
-		cfg->io.keyboard_handler_mode = cbox_keyboard_handler->GetSelection();
-		cfg->io.mouse_handler_mode = cbox_mouse_handler->GetSelection();
-		cfg->io.camera = cbox_camera->GetSelection();
-		cfg->io.camera_type = cbox_camera_type->GetSelection();
-
-		
-		// global settings
-		rpcs3::config.rsx.log_programs = chbox_gs_log_prog->GetValue();
-		rpcs3::config.rsx.vsync = chbox_gs_vsync->GetValue();
-		rpcs3::config.rsx._3dtv = chbox_gs_3dmonitor->GetValue();
-		rpcs3::config.rsx.d3d12.debug_output = chbox_gs_debug_output->GetValue();
-		rpcs3::config.rsx.d3d12.overlay = chbox_gs_overlay->GetValue();
-		rpcs3::config.audio.dump_to_file = chbox_audio_dump->GetValue();
-		rpcs3::config.audio.convert_to_u16 = chbox_audio_conv->GetValue();
-		rpcs3::config.misc.log.level = cbox_hle_loglvl->GetSelection();
-		rpcs3::config.misc.log.rsx_logging = chbox_rsx_logging->GetValue();
-		rpcs3::config.misc.net.status = cbox_net_status->GetSelection();
-		rpcs3::config.misc.net._interface = cbox_net_interface->GetSelection();
-		rpcs3::config.misc.debug.auto_pause_syscall = chbox_dbg_ap_systemcall->GetValue();
-		rpcs3::config.misc.debug.auto_pause_func_call = chbox_dbg_ap_functioncall->GetValue();
-		rpcs3::config.misc.always_start = chbox_hle_always_start->GetValue();
-		rpcs3::config.misc.exit_on_stop = chbox_hle_exitonstop->GetValue();
-		rpcs3::config.misc.use_default_ini = chbox_hle_use_default_ini->GetValue();
-		rpcs3::config.system.language = cbox_sys_lang->GetSelection();
-		rpcs3::config.system.emulation_dir_path_enable = chbox_emulationdir_enable->GetValue();
-		rpcs3::config.system.emulation_dir_path = txt_emulationdir_path->GetValue().ToStdString();
-		rpcs3::config.save();
-
-		cfg->save();
+		for (auto& pad : pads)
+		{
+			pad->save();
+		}
 	}
 
 	if (was_running) Emu.Resume();

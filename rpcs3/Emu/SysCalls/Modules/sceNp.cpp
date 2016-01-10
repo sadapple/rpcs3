@@ -1,12 +1,10 @@
 #include "stdafx.h"
 #include "Emu/Memory/Memory.h"
+#include "Emu/FS/VFS.h"
 #include "Emu/System.h"
-#include "Emu/state.h"
 #include "Emu/SysCalls/Modules.h"
 #include "Emu/SysCalls/lv2/sys_process.h"
 
-#include "Emu/FS/VFS.h"
-#include "Emu/FS/vfsDir.h"
 #include "Crypto/unedat.h"
 #include "sceNp.h"
 
@@ -42,9 +40,11 @@ s32 sceNpTerm()
 
 s32 npDrmIsAvailable(u32 k_licensee_addr, vm::cptr<char> drm_path)
 {
-	if (!Emu.GetVFS().ExistsFile(drm_path.get_ptr()))
+	const std::string& enc_drm_path = drm_path.get_ptr();
+
+	if (!fs::is_file(vfs::get(enc_drm_path)))
 	{
-		sceNp.warning("npDrmIsAvailable(): '%s' not found", drm_path.get_ptr());
+		sceNp.warning("npDrmIsAvailable(): '%s' not found", enc_drm_path);
 		return CELL_ENOENT;
 	}
 
@@ -60,49 +60,40 @@ s32 npDrmIsAvailable(u32 k_licensee_addr, vm::cptr<char> drm_path)
 		}
 	}
 
-	sceNp.warning("npDrmIsAvailable(): Found DRM license file at %s", drm_path.get_ptr());
-	sceNp.warning("npDrmIsAvailable(): Using k_licensee 0x%s", k_licensee_str.c_str());
+	sceNp.warning("npDrmIsAvailable(): Found DRM license file at %s", enc_drm_path);
+	sceNp.warning("npDrmIsAvailable(): Using k_licensee 0x%s", k_licensee_str);
 
 	// Set the necessary file paths.
-	std::string drm_file_name = fmt::AfterLast(drm_path.get_ptr(), '/');
+	const std::string& drm_file_name = enc_drm_path.substr(enc_drm_path.find_last_of('/') + 1);
 
 	// TODO: Make more explicit what this actually does (currently it copies "XXXXXXXX" from drm_path (== "/dev_hdd0/game/XXXXXXXXX/*" assumed)
-	std::string titleID(&drm_path[15], 9);
+	const std::string& drm_file_dir = enc_drm_path.substr(15);
+	const std::string& title_id = drm_file_dir.substr(0, drm_file_dir.find_first_of('/'));
 
-	// TODO: These shouldn't use current dir
-	std::string enc_drm_path = drm_path.get_ptr();
-	std::string dec_drm_path = "/dev_hdd1/cache/" + drm_file_name;
-	std::string pf_str("00000001");  // TODO: Allow multiple profiles. Use default for now.
-	std::string rap_path("/dev_hdd0/home/" + pf_str + "/exdata/");
+	const std::string& dec_drm_path = "/dev_hdd1/cache/" + drm_file_name;
+
+	std::string rap_lpath = vfs::get("/dev_hdd0/home/00000001/exdata/"); // TODO: Allow multiple profiles. Use default for now.
 
 	// Search for a compatible RAP file. 
-	for (const auto entry : vfsDir(rap_path))
+	for (const auto& entry : fs::dir(rap_lpath))
 	{
-		if (entry->name.find(titleID) != std::string::npos)
+		if (entry.name.find(title_id) != -1)
 		{
-			rap_path += entry->name;
+			rap_lpath += entry.name;
 			break;
 		}
 	}
 
-	if (rap_path.back() == '/')
+	if (rap_lpath.back() == '/')
 	{
-		sceNp.warning("npDrmIsAvailable(): Can't find RAP file for '%s' (titleID='%s')", drm_path.get_ptr(), titleID);
-		rap_path.clear();
+		sceNp.warning("npDrmIsAvailable(): Can't find RAP file for %s", enc_drm_path);
+		rap_lpath.clear();
 	}
 
-	// Decrypt this EDAT using the supplied k_licensee and matching RAP file.
-	std::string enc_drm_path_local, dec_drm_path_local, rap_path_local;
+	const std::string& enc_drm_path_local = vfs::get(enc_drm_path);
+	const std::string& dec_drm_path_local = vfs::get(dec_drm_path);
 
-	Emu.GetVFS().GetDevice(enc_drm_path, enc_drm_path_local);
-	Emu.GetVFS().GetDevice(dec_drm_path, dec_drm_path_local);
-
-	if (rap_path.size())
-	{
-		Emu.GetVFS().GetDevice(rap_path, rap_path_local);
-	}
-
-	if (DecryptEDAT(enc_drm_path_local, dec_drm_path_local, 8, rap_path_local, k_licensee, false) >= 0)
+	if (DecryptEDAT(enc_drm_path_local, dec_drm_path_local, 8, rap_lpath, k_licensee, false) >= 0)
 	{
 		// If decryption succeeds, replace the encrypted file with it.
 		fs::remove_file(enc_drm_path_local);

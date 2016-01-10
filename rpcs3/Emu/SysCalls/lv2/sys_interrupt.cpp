@@ -20,10 +20,8 @@ lv2_int_serv_t::lv2_int_serv_t(const std::shared_ptr<PPUThread>& thread)
 {
 }
 
-void lv2_int_serv_t::join(PPUThread& ppu, lv2_lock_t& lv2_lock)
+void lv2_int_serv_t::join(PPUThread& ppu, lv2_lock_t lv2_lock)
 {
-	CHECK_LV2_LOCK(lv2_lock);
-
 	// Use is_joining to stop interrupt thread and signal
 	thread->is_joining = true;
 

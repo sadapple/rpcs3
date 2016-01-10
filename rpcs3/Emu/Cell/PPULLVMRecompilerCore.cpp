@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #ifdef LLVM_AVAILABLE
-#include "Emu/state.h"
+#include "Utilities/Registry.h"
 #include "Emu/System.h"
 #include "Emu/Cell/PPULLVMRecompiler.h"
 #include "Emu/Memory/Memory.h"
@@ -29,8 +29,17 @@
 #pragma warning(pop)
 #endif
 
+#define INSTRUCTION_ENTRY(inst) const extern cfg::bool_entry g_cfg_llvm_enable_##inst("core/llvm/Enable instruction " #inst, true);
+
+MACRO_PPU_INST_MAIN_EXPANDERS(INSTRUCTION_ENTRY)
+MACRO_PPU_INST_G_13_EXPANDERS(INSTRUCTION_ENTRY)
+MACRO_PPU_INST_G_1E_EXPANDERS(INSTRUCTION_ENTRY)
+MACRO_PPU_INST_G_1F_EXPANDERS(INSTRUCTION_ENTRY)
+MACRO_PPU_INST_G_3A_EXPANDERS(INSTRUCTION_ENTRY)
+MACRO_PPU_INST_G_3E_EXPANDERS(INSTRUCTION_ENTRY)
+
 #define USE_INTERP_IF_REQUESTED(inst, ...) \
-	if (!rpcs3::state.config.core.llvm.enable_##inst.value()) \
+	if (!g_cfg_llvm_enable_##inst) \
 	{ \
 		Call<void>(#inst, m_state.args[CompileTaskState::Args::State], __VA_ARGS__); \
 		return; \
@@ -3235,8 +3244,7 @@ void Compiler::MFSPR(u32 rd, u32 spr) {
 		rd_i64 = m_ir_builder->CreateLShr(rd_i64, 32);
 		break;
 	default:
-		assert(0);
-		break;
+		throw fmt::exception("Invalid spr value (0x%x)" HERE, n);
 	}
 
 	SetGpr(rd, rd_i64);
@@ -3425,8 +3433,7 @@ void Compiler::MTSPR(u32 spr, u32 rs) {
 		SetVrsave(rs_i64);
 		break;
 	default:
-		assert(0);
-		break;
+		throw fmt::exception("Invalid spr value (0x%x)" HERE, n);
 	}
 }
 
@@ -5299,7 +5306,7 @@ void Compiler::SetFpr(u32 r, Value * val) {
 		val_f64 = m_ir_builder->CreateFPExt(val_f32, m_ir_builder->getDoubleTy());
 	}
 	else {
-		assert(0);
+		throw std::runtime_error("Invalid value type" HERE);
 	}
 
 	m_ir_builder->CreateAlignedStore(val_f64, r_f64_ptr, 8);

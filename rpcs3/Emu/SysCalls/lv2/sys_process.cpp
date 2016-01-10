@@ -4,9 +4,6 @@
 #include "Emu/IdManager.h"
 #include "Emu/SysCalls/SysCalls.h"
 
-#include "Emu/FS/VFS.h"
-#include "Emu/FS/vfsFile.h"
-#include "Loader/PSF.h"
 #include "sys_lwmutex.h"
 #include "sys_lwcond.h"
 #include "sys_mutex.h"

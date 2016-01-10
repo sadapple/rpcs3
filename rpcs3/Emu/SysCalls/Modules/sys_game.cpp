@@ -70,18 +70,11 @@ void sys_game_process_exitspawn(vm::cptr<char> path, u32 argv_addr, u32 envp_add
 	Emu.Pause();
 	sysPrxForUser.success("Process finished");
 
-	Emu.CallAfter([=]()
+	Emu.CallAfter([=, path = vfs::get(_path)]()
 	{
 		Emu.Stop();
-
-		std::string real_path;
-
-		Emu.GetVFS().GetDevice(_path.c_str(), real_path);
-
-		Emu.BootGame(real_path, true);
+		Emu.BootGame(path, true);
 	});
-
-	return;
 }
 
 void sys_game_process_exitspawn2(vm::cptr<char> path, u32 argv_addr, u32 envp_addr, u32 data_addr, u32 data_size, u32 prio, u64 flags)
@@ -146,15 +139,10 @@ void sys_game_process_exitspawn2(vm::cptr<char> path, u32 argv_addr, u32 envp_ad
 	Emu.Pause();
 	sysPrxForUser.success("Process finished");
 
-	Emu.CallAfter([=]()
+	Emu.CallAfter([=, path = vfs::get(_path)]()
 	{
 		Emu.Stop();
-
-		std::string real_path;
-
-		Emu.GetVFS().GetDevice(_path.c_str(), real_path);
-
-		Emu.BootGame(real_path, true);
+		Emu.BootGame(path, true);
 	});
 
 	return;

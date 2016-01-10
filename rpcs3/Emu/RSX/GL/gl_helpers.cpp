@@ -20,7 +20,7 @@ namespace gl
 		case rsx::primitive_type::quad_strip: return GL_QUAD_STRIP;
 		case rsx::primitive_type::polygon: return GL_POLYGON;
 		}
-		throw new EXCEPTION("unknow primitive type");
+		throw EXCEPTION("unknow primitive type");
 	}
 
 	void fbo::create()

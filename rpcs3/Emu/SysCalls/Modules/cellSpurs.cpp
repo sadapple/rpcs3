@@ -3,7 +3,6 @@
 #include "Emu/System.h"
 #include "Emu/SysCalls/Modules.h"
 #include "Emu/IdManager.h"
-#include "Emu/Event.h"
 
 #include "Emu/Cell/SPUThread.h"
 #include "Emu/SysCalls/lv2/sys_sync.h"
@@ -17,6 +16,19 @@
 #include "Emu/SysCalls/lv2/sys_event.h"
 #include "sysPrxForUser.h"
 #include "cellSpurs.h"
+
+// TODO
+struct cell_error_t
+{
+	s32 value;
+
+	explicit operator bool() const
+	{
+		return (value < 0);
+	}
+};
+
+#define CHECK_SUCCESS(expr) if (cell_error_t error{expr}) throw fmt::exception("Failure: %s -> 0x%x" HERE, #expr, error.value)
 
 //----------------------------------------------------------------------------
 // Externs
@@ -582,7 +594,7 @@ void _spurs::handler_entry(PPUThread& ppu, vm::ptr<CellSpurs> spurs)
 
 		if ((spurs->flags1 & SF1_EXIT_IF_NO_WORK) == 0)
 		{
-			CHECK_ASSERTION(spurs->handlerExiting == 1);
+			ASSERT(spurs->handlerExiting == 1);
 
 			return sys_ppu_thread_exit(ppu, 0);
 		}
@@ -645,16 +657,16 @@ s32 _spurs::wakeup_shutdown_completion_waiter(PPUThread& ppu, vm::ptr<CellSpurs>
 	{
 		wklF->hook(ppu, spurs, wid, wklF->hookArg);
 
-		CHECK_ASSERTION(wklEvent->load() & 0x01);
-		CHECK_ASSERTION(wklEvent->load() & 0x02);
-		CHECK_ASSERTION((wklEvent->load() & 0x20) == 0);
+		ASSERT(wklEvent->load() & 0x01);
+		ASSERT(wklEvent->load() & 0x02);
+		ASSERT((wklEvent->load() & 0x20) == 0);
 		*wklEvent |= 0x20;
 	}
 
 	s32 rc = CELL_OK;
 	if (!wklF->hook || wklEvent->load() & 0x10)
 	{
-		CHECK_ASSERTION(wklF->x28 == 2);
+		ASSERT(wklF->x28 == 2);
 		rc = sys_semaphore_post((u32)wklF->sem, 1);
 	}
 
@@ -738,7 +750,7 @@ void _spurs::event_helper_entry(PPUThread& ppu, vm::ptr<CellSpurs> spurs)
 			}
 			else
 			{
-				CHECK_SUCCESS(data0);
+				throw fmt::exception("data0=0x%x" HERE, data0);
 			}
 		}
 	}
@@ -1021,7 +1033,7 @@ s32 _spurs::initialize(PPUThread& ppu, vm::ptr<CellSpurs> spurs, u32 revision, u
 
 	// Import SPURS kernel
 	spurs->spuImg.type        = SYS_SPU_IMAGE_TYPE_USER;
-	spurs->spuImg.addr        = vm::alloc(0x40000, vm::main);
+	spurs->spuImg.segs        = { vm::alloc(0x40000, vm::main), vm::addr };
 	spurs->spuImg.entry_point = isSecond ? CELL_SPURS_KERNEL2_ENTRY_ADDR : CELL_SPURS_KERNEL1_ENTRY_ADDR;
 	spurs->spuImg.nsegs       = 1;
 
@@ -2111,8 +2123,8 @@ s32 _spurs::add_workload(vm::ptr<CellSpurs> spurs, vm::ptr<u32> wid, vm::cptr<vo
 	u32 index = wnum & 0xf;
 	if (wnum <= 15)
 	{
-		CHECK_ASSERTION((spurs->wklCurrentContention[wnum] & 0xf) == 0);
-		CHECK_ASSERTION((spurs->wklPendingContention[wnum] & 0xf) == 0);
+		ASSERT((spurs->wklCurrentContention[wnum] & 0xf) == 0);
+		ASSERT((spurs->wklPendingContention[wnum] & 0xf) == 0);
 		spurs->wklState1[wnum] = 1;
 		spurs->wklStatus1[wnum] = 0;
 		spurs->wklEvent1[wnum] = 0;
@@ -2147,8 +2159,8 @@ s32 _spurs::add_workload(vm::ptr<CellSpurs> spurs, vm::ptr<u32> wid, vm::cptr<vo
 	}
 	else
 	{
-		CHECK_ASSERTION((spurs->wklCurrentContention[index] & 0xf0) == 0);
-		CHECK_ASSERTION((spurs->wklPendingContention[index] & 0xf0) == 0);
+		ASSERT((spurs->wklCurrentContention[index] & 0xf0) == 0);
+		ASSERT((spurs->wklPendingContention[index] & 0xf0) == 0);
 		spurs->wklState2[index] = 1;
 		spurs->wklStatus2[index] = 0;
 		spurs->wklEvent2[index] = 0;
@@ -2227,7 +2239,7 @@ s32 _spurs::add_workload(vm::ptr<CellSpurs> spurs, vm::ptr<u32> wid, vm::cptr<vo
 		v = mask | (0x80000000u >> wnum);
 	});
 
-	CHECK_ASSERTION(res_wkl <= 31);
+	ASSERT(res_wkl <= 31);
 	spurs->wklState(wnum).exchange(2);
 	spurs->sysSrvMsgUpdateWorkload.exchange(0xff);
 	spurs->sysSrvMessage.exchange(0xff);
@@ -3160,7 +3172,7 @@ s32 cellSpursEventFlagGetTasksetAddress(vm::ptr<CellSpursEventFlag> eventFlag, v
 		return CELL_SPURS_TASK_ERROR_ALIGN;
 	}
 
-	taskset->set(eventFlag->isIwl ? 0u : VM_CAST(eventFlag->addr));
+	taskset->set(eventFlag->isIwl ? 0u : vm::cast(eventFlag->addr, HERE));
 	return CELL_OK;
 }
 

@@ -104,9 +104,6 @@
     <ClCompile Include="Emu\System.cpp">
       <Filter>Emu</Filter>
     </ClCompile>
-    <ClCompile Include="Emu\Event.cpp">
-      <Filter>Emu\SysCalls</Filter>
-    </ClCompile>
     <ClCompile Include="Emu\SysCalls\Callback.cpp">
       <Filter>Emu\SysCalls</Filter>
     </ClCompile>
@@ -278,46 +275,7 @@
     <ClCompile Include="Emu\SysCalls\Modules\sys_net.cpp">
       <Filter>Emu\SysCalls\Modules</Filter>
     </ClCompile>
-    <ClCompile Include="Emu\Io\Keyboard.cpp">
-      <Filter>Emu\Io</Filter>
-    </ClCompile>
-    <ClCompile Include="Emu\Io\Mouse.cpp">
-      <Filter>Emu\Io</Filter>
-    </ClCompile>
-    <ClCompile Include="Emu\Io\Pad.cpp">
-      <Filter>Emu\Io</Filter>
-    </ClCompile>
     <ClCompile Include="Emu\FS\VFS.cpp">
-      <Filter>Emu\FS</Filter>
-    </ClCompile>
-    <ClCompile Include="Emu\FS\vfsDevice.cpp">
-      <Filter>Emu\FS</Filter>
-    </ClCompile>
-    <ClCompile Include="Emu\FS\vfsDeviceLocalFile.cpp">
-      <Filter>Emu\FS</Filter>
-    </ClCompile>
-    <ClCompile Include="Emu\FS\vfsDir.cpp">
-      <Filter>Emu\FS</Filter>
-    </ClCompile>
-    <ClCompile Include="Emu\FS\vfsDirBase.cpp">
-      <Filter>Emu\FS</Filter>
-    </ClCompile>
-    <ClCompile Include="Emu\FS\vfsFile.cpp">
-      <Filter>Emu\FS</Filter>
-    </ClCompile>
-    <ClCompile Include="Emu\FS\vfsFileBase.cpp">
-      <Filter>Emu\FS</Filter>
-    </ClCompile>
-    <ClCompile Include="Emu\FS\vfsLocalDir.cpp">
-      <Filter>Emu\FS</Filter>
-    </ClCompile>
-    <ClCompile Include="Emu\FS\vfsLocalFile.cpp">
-      <Filter>Emu\FS</Filter>
-    </ClCompile>
-    <ClCompile Include="Emu\FS\vfsStream.cpp">
-      <Filter>Emu\FS</Filter>
-    </ClCompile>
-    <ClCompile Include="Emu\FS\vfsStreamMemory.cpp">
       <Filter>Emu\FS</Filter>
     </ClCompile>
     <ClCompile Include="Emu\HDD\HDD.cpp">
@@ -346,9 +304,6 @@
     </ClCompile>
     <ClCompile Include="Emu\ARMv7\ARMv7Thread.cpp">
       <Filter>Emu\CPU\ARMv7</Filter>
-    </ClCompile>
-    <ClCompile Include="Emu\Audio\AudioManager.cpp">
-      <Filter>Emu\Audio</Filter>
     </ClCompile>
     <ClCompile Include="Emu\Audio\AudioDumper.cpp">
       <Filter>Emu\Audio</Filter>
@@ -449,9 +404,6 @@
     <ClCompile Include="Emu\SysCalls\Modules\cellMsgDialog.cpp">
       <Filter>Emu\SysCalls\Modules</Filter>
     </ClCompile>
-    <ClCompile Include="Emu\RSX\GSManager.cpp">
-      <Filter>Emu\GPU\RSX</Filter>
-    </ClCompile>
     <ClCompile Include="Emu\RSX\GSRender.cpp">
       <Filter>Emu\GPU\RSX</Filter>
     </ClCompile>
@@ -468,9 +420,6 @@
       <Filter>Emu\SysCalls\lv2</Filter>
     </ClCompile>
     <ClCompile Include="..\Utilities\AutoPause.cpp">
-      <Filter>Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Utilities\rPlatform.cpp">
       <Filter>Utilities</Filter>
     </ClCompile>
     <ClCompile Include="..\Utilities\rTime.cpp">
@@ -881,9 +830,6 @@
     <ClCompile Include="Emu\IdManager.cpp">
       <Filter>Emu</Filter>
     </ClCompile>
-    <ClCompile Include="..\Utilities\SleepQueue.cpp">
-      <Filter>Utilities</Filter>
-    </ClCompile>
     <ClCompile Include="..\Utilities\VirtualMemory.cpp">
       <Filter>Utilities</Filter>
     </ClCompile>
@@ -908,14 +854,7 @@
     <ClCompile Include="Emu\RSX\Null\NullGSRender.cpp">
       <Filter>Emu\GPU\RSX\Null</Filter>
     </ClCompile>
-    <ClCompile Include="..\Utilities\config_context.cpp">
-      <Filter>Utilities</Filter>
-    </ClCompile>
-    <ClCompile Include="config.cpp" />
     <ClCompile Include="Emu\events.cpp">
-      <Filter>Emu</Filter>
-    </ClCompile>
-    <ClCompile Include="Emu\state.cpp">
       <Filter>Emu</Filter>
     </ClCompile>
     <ClCompile Include="Emu\RSX\GCM.cpp">
@@ -938,6 +877,9 @@
     </ClCompile>
     <ClCompile Include="Emu\RSX\Common\surface_store.cpp">
       <Filter>Emu\GPU\RSX\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Utilities\Registry.cpp">
+      <Filter>Utilities</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1118,55 +1060,16 @@
     <ClInclude Include="Emu\SysCalls\Modules\sys_net.h">
       <Filter>Emu\SysCalls\Modules</Filter>
     </ClInclude>
-    <ClInclude Include="Emu\Io\Keyboard.h">
-      <Filter>Emu\Io</Filter>
-    </ClInclude>
     <ClInclude Include="Emu\Io\KeyboardHandler.h">
       <Filter>Emu\Io</Filter>
     </ClInclude>
-    <ClInclude Include="Emu\Io\Mouse.h">
-      <Filter>Emu\Io</Filter>
-    </ClInclude>
     <ClInclude Include="Emu\Io\MouseHandler.h">
-      <Filter>Emu\Io</Filter>
-    </ClInclude>
-    <ClInclude Include="Emu\Io\Pad.h">
       <Filter>Emu\Io</Filter>
     </ClInclude>
     <ClInclude Include="Emu\Io\PadHandler.h">
       <Filter>Emu\Io</Filter>
     </ClInclude>
     <ClInclude Include="Emu\FS\VFS.h">
-      <Filter>Emu\FS</Filter>
-    </ClInclude>
-    <ClInclude Include="Emu\FS\vfsDevice.h">
-      <Filter>Emu\FS</Filter>
-    </ClInclude>
-    <ClInclude Include="Emu\FS\vfsDeviceLocalFile.h">
-      <Filter>Emu\FS</Filter>
-    </ClInclude>
-    <ClInclude Include="Emu\FS\vfsDir.h">
-      <Filter>Emu\FS</Filter>
-    </ClInclude>
-    <ClInclude Include="Emu\FS\vfsDirBase.h">
-      <Filter>Emu\FS</Filter>
-    </ClInclude>
-    <ClInclude Include="Emu\FS\vfsFile.h">
-      <Filter>Emu\FS</Filter>
-    </ClInclude>
-    <ClInclude Include="Emu\FS\vfsFileBase.h">
-      <Filter>Emu\FS</Filter>
-    </ClInclude>
-    <ClInclude Include="Emu\FS\vfsLocalDir.h">
-      <Filter>Emu\FS</Filter>
-    </ClInclude>
-    <ClInclude Include="Emu\FS\vfsLocalFile.h">
-      <Filter>Emu\FS</Filter>
-    </ClInclude>
-    <ClInclude Include="Emu\FS\vfsStream.h">
-      <Filter>Emu\FS</Filter>
-    </ClInclude>
-    <ClInclude Include="Emu\FS\vfsStreamMemory.h">
       <Filter>Emu\FS</Filter>
     </ClInclude>
     <ClInclude Include="Emu\HDD\HDD.h">
@@ -1253,9 +1156,6 @@
     <ClInclude Include="Emu\Audio\AudioDumper.h">
       <Filter>Emu\Audio</Filter>
     </ClInclude>
-    <ClInclude Include="Emu\Audio\AudioManager.h">
-      <Filter>Emu\Audio</Filter>
-    </ClInclude>
     <ClInclude Include="Emu\Memory\Memory.h">
       <Filter>Emu\Memory</Filter>
     </ClInclude>
@@ -1294,9 +1194,6 @@
     </ClInclude>
     <ClInclude Include="Emu\DbgCommand.h">
       <Filter>Emu</Filter>
-    </ClInclude>
-    <ClInclude Include="Emu\Event.h">
-      <Filter>Emu\SysCalls</Filter>
     </ClInclude>
     <ClInclude Include="Emu\SysCalls\lv2\sys_process.h">
       <Filter>Emu\SysCalls\lv2</Filter>
@@ -1364,9 +1261,6 @@
     <ClInclude Include="Emu\RSX\Null\NullGSRender.h">
       <Filter>Emu\GPU\RSX\Null</Filter>
     </ClInclude>
-    <ClInclude Include="Emu\RSX\GSManager.h">
-      <Filter>Emu\GPU\RSX</Filter>
-    </ClInclude>
     <ClInclude Include="Emu\RSX\GSRender.h">
       <Filter>Emu\GPU\RSX</Filter>
     </ClInclude>
@@ -1405,9 +1299,6 @@
     </ClInclude>
     <ClInclude Include="Emu\Io\Null\NullMouseHandler.h">
       <Filter>Emu\Io\Null</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Utilities\rPlatform.h">
-      <Filter>Utilities</Filter>
     </ClInclude>
     <ClInclude Include="..\Utilities\rTime.h">
       <Filter>Utilities</Filter>
@@ -1760,20 +1651,10 @@
     <ClInclude Include="..\Utilities\types.h">
       <Filter>Utilities</Filter>
     </ClInclude>
-    <ClInclude Include="..\Utilities\config_context.h">
-      <Filter>Utilities</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Utilities\convert.h">
-      <Filter>Utilities</Filter>
-    </ClInclude>
     <ClInclude Include="..\Utilities\event.h">
       <Filter>Utilities</Filter>
     </ClInclude>
-    <ClInclude Include="config.h" />
     <ClInclude Include="Emu\events.h">
-      <Filter>Emu</Filter>
-    </ClInclude>
-    <ClInclude Include="Emu\state.h">
       <Filter>Emu</Filter>
     </ClInclude>
     <ClInclude Include="..\Utilities\BitField.h">
@@ -1793,6 +1674,15 @@
     </ClInclude>
     <ClInclude Include="Emu\RSX\Common\surface_store.h">
       <Filter>Emu\GPU\RSX\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Utilities\Enum.h">
+      <Filter>Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Utilities\Registry.h">
+      <Filter>Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Utilities\Property.h">
+      <Filter>Utilities</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

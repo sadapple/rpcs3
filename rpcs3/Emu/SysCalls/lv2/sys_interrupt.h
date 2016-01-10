@@ -22,7 +22,7 @@ struct lv2_int_serv_t
 
 	lv2_int_serv_t(const std::shared_ptr<PPUThread>& thread);
 
-	void join(PPUThread& ppu, lv2_lock_t& lv2_lock);
+	void join(PPUThread& ppu, lv2_lock_t);
 };
 
 // SysCalls

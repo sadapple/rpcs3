@@ -154,12 +154,12 @@ struct D3D12Traits
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC graphicPipelineStateDesc = {};
 
 		if (vertexProgramData.bytecode == nullptr)
-			throw new EXCEPTION("Vertex program compilation failure");
+			throw EXCEPTION("Vertex program compilation failure");
 		graphicPipelineStateDesc.VS.BytecodeLength = vertexProgramData.bytecode->GetBufferSize();
 		graphicPipelineStateDesc.VS.pShaderBytecode = vertexProgramData.bytecode->GetBufferPointer();
 
 		if (fragmentProgramData.bytecode == nullptr)
-			throw new EXCEPTION("fragment program compilation failure");
+			throw EXCEPTION("fragment program compilation failure");
 		graphicPipelineStateDesc.PS.BytecodeLength = fragmentProgramData.bytecode->GetBufferSize();
 		graphicPipelineStateDesc.PS.pShaderBytecode = fragmentProgramData.bytecode->GetBufferPointer();
 

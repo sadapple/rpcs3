@@ -3,9 +3,10 @@
 #include "Emu/Cell/Common.h"
 #include "Emu/CPU/CPUThread.h"
 #include "Emu/Cell/SPUContext.h"
+#include "Emu/Cell/SPUInterpreter.h"
 #include "MFC.h"
 
-struct lv2_event_queue_t;
+class lv2_event_queue_t;
 struct lv2_spu_group_t;
 struct lv2_int_tag_t;
 
@@ -619,13 +620,15 @@ public:
 	void halt();
 
 	// Convert specified SPU LS address to a pointer of specified (possibly converted to BE) type
-	template<typename T> inline to_be_t<T>* _ptr(u32 lsa)
+	template<typename T>
+	inline to_be_t<T>* _ptr(u32 lsa)
 	{
 		return static_cast<to_be_t<T>*>(vm::base(offset + lsa));
 	}
 
 	// Convert specified SPU LS address to a reference of specified (possibly converted to BE) type
-	template<typename T> inline to_be_t<T>& _ref(u32 lsa)
+	template<typename T>
+	inline to_be_t<T>& _ref(u32 lsa)
 	{
 		return *_ptr<T>(lsa);
 	}
@@ -656,6 +659,7 @@ public:
 		}
 	}
 
+	const spu_opcode_table_t<spu_inter_func_t>* optable;
 	std::function<void(SPUThread&)> custom_task;
 	std::exception_ptr pending_exception;
 	u32 recursion_level = 0;

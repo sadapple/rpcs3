@@ -36,13 +36,13 @@ namespace vm
 
 		T& get_ref() const
 		{
-			return *static_cast<T*>(vm::base(VM_CAST(m_addr)));
+			return *static_cast<T*>(vm::base(vm::cast(m_addr, HERE)));
 		}
 
 		// convert to vm pointer
 		vm::_ptr_base<T, u32> ptr() const
 		{
-			return{ VM_CAST(m_addr), vm::addr };
+			return{ vm::cast(m_addr, HERE), vm::addr };
 		}
 
 		operator to_ne_t<T>() const
@@ -191,7 +191,8 @@ namespace fmt
 {
 	// external specialization for fmt::format function
 
-	template<typename T, typename AT> struct unveil<vm::_ref_base<T, AT>, false>
+	template<typename T, typename AT>
+	struct unveil<vm::_ref_base<T, AT>>
 	{
 		using result_type = typename unveil<AT>::result_type;
 

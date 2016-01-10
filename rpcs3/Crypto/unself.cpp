@@ -2,7 +2,6 @@
 #include "aes.h"
 #include "sha1.h"
 #include "utils.h"
-#include "Emu/FS/vfsLocalFile.h"
 #include "unself.h"
 #pragma warning(push)
 #pragma message("TODO: remove wx dependencies: <wx/mstream.h> <wx/zstream.h>")
@@ -11,58 +10,53 @@
 #include <wx/zstream.h>
 #pragma warning(pop)
 
-force_inline u8 Read8(vfsStream& f)
+force_inline u8 Read8(const fs::file& f)
 {
 	u8 ret;
-	f.Read(&ret, sizeof(ret));
+	f.read(&ret, sizeof(ret));
 	return ret;
 }
 
-force_inline u16 Read16(vfsStream& f)
+force_inline u16 Read16(const fs::file& f)
 {
 	be_t<u16> ret;
-	f.Read(&ret, sizeof(ret));
+	f.read(&ret, sizeof(ret));
 	return ret;
 }
 
-force_inline u32 Read32(vfsStream& f)
+force_inline u32 Read32(const fs::file& f)
 {
 	be_t<u32> ret;
-	f.Read(&ret, sizeof(ret));
+	f.read(&ret, sizeof(ret));
 	return ret;
 }
 
-force_inline u64 Read64(vfsStream& f)
+force_inline u64 Read64(const fs::file& f)
 {
 	be_t<u64> ret;
-	f.Read(&ret, sizeof(ret));
+	f.read(&ret, sizeof(ret));
 	return ret;
 }
 
-force_inline u16 Read16LE(vfsStream& f)
+force_inline u16 Read16LE(const fs::file& f)
 {
 	u16 ret;
-	f.Read(&ret, sizeof(ret));
+	f.read(&ret, sizeof(ret));
 	return ret;
 }
 
-force_inline u32 Read32LE(vfsStream& f)
+force_inline u32 Read32LE(const fs::file& f)
 {
 	u32 ret;
-	f.Read(&ret, sizeof(ret));
+	f.read(&ret, sizeof(ret));
 	return ret;
 }
 
-force_inline u64 Read64LE(vfsStream& f)
+force_inline u64 Read64LE(const fs::file& f)
 {
 	u64 ret;
-	f.Read(&ret, sizeof(ret));
+	f.read(&ret, sizeof(ret));
 	return ret;
-}
-
-force_inline void Write8(vfsStream& f, const u8 data)
-{
-	f.Write(&data, sizeof(data));
 }
 
 force_inline void Write8(const fs::file& f, const u8 data)
@@ -70,19 +64,9 @@ force_inline void Write8(const fs::file& f, const u8 data)
 	f.write(&data, sizeof(data));
 }
 
-force_inline void Write16LE(vfsStream& f, const u16 data)
-{
-	f.Write(&data, sizeof(data));
-}
-
 force_inline void Write16LE(const fs::file& f, const u16 data)
 {
 	f.write(&data, sizeof(data));
-}
-
-force_inline void Write32LE(vfsStream& f, const u32 data)
-{
-	f.Write(&data, sizeof(data));
 }
 
 force_inline void Write32LE(const fs::file& f, const u32 data)
@@ -90,19 +74,9 @@ force_inline void Write32LE(const fs::file& f, const u32 data)
 	f.write(&data, sizeof(data));
 }
 
-force_inline void Write64LE(vfsStream& f, const u64 data)
-{
-	f.Write(&data, sizeof(data));
-}
-
 force_inline void Write64LE(const fs::file& f, const u64 data)
 {
 	f.write(&data, sizeof(data));
-}
-
-force_inline void Write16(vfsStream& f, const be_t<u16> data)
-{
-	f.Write(&data, sizeof(data));
 }
 
 force_inline void Write16(const fs::file& f, const be_t<u16> data)
@@ -110,19 +84,9 @@ force_inline void Write16(const fs::file& f, const be_t<u16> data)
 	f.write(&data, sizeof(data));
 }
 
-force_inline void Write32(vfsStream& f, const be_t<u32> data)
-{
-	f.Write(&data, sizeof(data));
-}
-
 force_inline void Write32(const fs::file& f, const be_t<u32> data)
 {
 	f.write(&data, sizeof(data));
-}
-
-force_inline void Write64(vfsStream& f, const be_t<u64> data)
-{
-	f.Write(&data, sizeof(data));
 }
 
 force_inline void Write64(const fs::file& f, const be_t<u64> data)
@@ -229,7 +193,7 @@ void WriteShdr(const fs::file& f, Elf32_Shdr& shdr)
 }
 
 
-void AppInfo::Load(vfsStream& f)
+void AppInfo::Load(const fs::file& f)
 {
 	authid    = Read64(f);
 	vendor_id = Read32(f);
@@ -246,7 +210,7 @@ void AppInfo::Show()
 	LOG_NOTICE(LOADER, "Version: 0x%llx", version);
 }
 
-void SectionInfo::Load(vfsStream& f)
+void SectionInfo::Load(const fs::file& f)
 {
 	offset     = Read64(f);
 	size       = Read64(f);
@@ -266,7 +230,7 @@ void SectionInfo::Show()
 	LOG_NOTICE(LOADER, "Encrypted: 0x%08x", encrypted);
 }
 
-void SCEVersionInfo::Load(vfsStream& f)
+void SCEVersionInfo::Load(const fs::file& f)
 {
 	subheader_type = Read32(f);
 	present        = Read32(f);
@@ -282,7 +246,7 @@ void SCEVersionInfo::Show()
 	LOG_NOTICE(LOADER, "Unknown: 0x%08x", unknown);
 }
 
-void ControlInfo::Load(vfsStream& f)
+void ControlInfo::Load(const fs::file& f)
 {
 	type = Read32(f);
 	size = Read32(f);
@@ -303,13 +267,13 @@ void ControlInfo::Load(vfsStream& f)
 	{
 		if (size == 0x30)
 		{
-			f.Read(file_digest_30.digest, 20);
+			f.read(file_digest_30.digest, 20);
 			file_digest_30.unknown = Read64(f);
 		}
 		else if (size == 0x40)
 		{
-			f.Read(file_digest_40.digest1, 20);
-			f.Read(file_digest_40.digest2, 20);
+			f.read(file_digest_40.digest1, 20);
+			f.read(file_digest_40.digest2, 20);
 			file_digest_40.unknown = Read64(f);
 		}
 	}
@@ -319,10 +283,10 @@ void ControlInfo::Load(vfsStream& f)
 		npdrm.unknown1 = Read32(f);
 		npdrm.license = Read32(f);
 		npdrm.type = Read32(f);
-		f.Read(npdrm.content_id, 48);
-		f.Read(npdrm.digest, 16);
-		f.Read(npdrm.invdigest, 16);
-		f.Read(npdrm.xordigest, 16);
+		f.read(npdrm.content_id, 48);
+		f.read(npdrm.digest, 16);
+		f.read(npdrm.invdigest, 16);
+		f.read(npdrm.xordigest, 16);
 		npdrm.unknown2 = Read64(f);
 		npdrm.unknown3 = Read64(f);
 	}
@@ -498,14 +462,14 @@ void MetadataSectionHeader::Show()
 	LOG_NOTICE(LOADER, "Compressed: 0x%08x", compressed);
 }
 
-void SectionHash::Load(vfsStream& f)
+void SectionHash::Load(const fs::file& f)
 {
-	f.Read(sha1, 20);
-	f.Read(padding, 12);
-	f.Read(hmac_key, 64);
+	f.read(sha1, 20);
+	f.read(padding, 12);
+	f.read(hmac_key, 64);
 }
 
-void CapabilitiesInfo::Load(vfsStream& f)
+void CapabilitiesInfo::Load(const fs::file& f)
 {
 	type     = Read32(f);
 	capabilities_size = Read32(f);
@@ -518,21 +482,21 @@ void CapabilitiesInfo::Load(vfsStream& f)
 	unknown5 = Read32(f);
 }
 
-void Signature::Load(vfsStream& f)
+void Signature::Load(const fs::file& f)
 {
-	f.Read(r, 21);
-	f.Read(s, 21);
-	f.Read(padding, 6);
+	f.read(r, 21);
+	f.read(s, 21);
+	f.read(padding, 6);
 }
 
-void SelfSection::Load(vfsStream& f)
+void SelfSection::Load(const fs::file& f)
 {
 	*data = Read32(f);
 	size = Read64(f);
 	offset = Read64(f);
 }
 
-void Elf32_Ehdr::Load(vfsStream& f)
+void Elf32_Ehdr::Load(const fs::file& f)
 {
 	e_magic = Read32(f);
 	e_class = Read8(f);
@@ -576,7 +540,7 @@ void Elf32_Ehdr::Load(vfsStream& f)
 	}
 }
 
-void Elf32_Shdr::Load(vfsStream& f)
+void Elf32_Shdr::Load(const fs::file& f)
 {
 	sh_name = Read32(f);
 	sh_type = Read32(f);
@@ -590,12 +554,12 @@ void Elf32_Shdr::Load(vfsStream& f)
 	sh_entsize = Read32(f);
 }
 
-void Elf32_Shdr::LoadLE(vfsStream& f)
+void Elf32_Shdr::LoadLE(const fs::file& f)
 {
-	f.Read(this, sizeof(*this));
+	f.read(this, sizeof(*this));
 }
 
-void Elf32_Phdr::Load(vfsStream& f)
+void Elf32_Phdr::Load(const fs::file& f)
 {
 	p_type = Read32(f);
 	p_offset = Read32(f);
@@ -607,12 +571,12 @@ void Elf32_Phdr::Load(vfsStream& f)
 	p_align = Read32(f);
 }
 
-void Elf32_Phdr::LoadLE(vfsStream& f)
+void Elf32_Phdr::LoadLE(const fs::file& f)
 {
-	f.Read(this, sizeof(*this));
+	f.read(this, sizeof(*this));
 }
 
-void Elf64_Ehdr::Load(vfsStream& f)
+void Elf64_Ehdr::Load(const fs::file& f)
 {
 	e_magic = Read32(f);
 	e_class = Read8(f);
@@ -635,7 +599,7 @@ void Elf64_Ehdr::Load(vfsStream& f)
 	e_shstrndx = Read16(f);
 }
 
-void Elf64_Shdr::Load(vfsStream& f)
+void Elf64_Shdr::Load(const fs::file& f)
 {
 	sh_name = Read32(f);
 	sh_type = Read32(f);
@@ -649,7 +613,7 @@ void Elf64_Shdr::Load(vfsStream& f)
 	sh_entsize = Read64(f);
 }
 
-void Elf64_Phdr::Load(vfsStream& f)
+void Elf64_Phdr::Load(const fs::file& f)
 {
 	p_type = Read32(f);
 	p_flags = Read32(f);
@@ -661,7 +625,7 @@ void Elf64_Phdr::Load(vfsStream& f)
 	p_align = Read64(f);
 }
 
-void SceHeader::Load(vfsStream& f)
+void SceHeader::Load(const fs::file& f)
 {
 	se_magic = Read32(f);
 	se_hver = Read32(f);
@@ -672,7 +636,7 @@ void SceHeader::Load(vfsStream& f)
 	se_esize = Read64(f);
 }
 
-void SelfHeader::Load(vfsStream& f)
+void SelfHeader::Load(const fs::file& f)
 {
 	se_htype = Read64(f);
 	se_appinfooff = Read64(f);
@@ -686,7 +650,7 @@ void SelfHeader::Load(vfsStream& f)
 	pad = Read64(f);
 }
 
-SELFDecrypter::SELFDecrypter(vfsStream& s)
+SELFDecrypter::SELFDecrypter(const fs::file& s)
 	: self_f(s)
 	, key_v()
 	, data_buf_length(0)
@@ -696,7 +660,7 @@ SELFDecrypter::SELFDecrypter(vfsStream& s)
 bool SELFDecrypter::LoadHeaders(bool isElf32)
 {
 	// Read SCE header.
-	CHECK_ASSERTION(self_f.Seek(0) != -1);
+	self_f.seek(0);
 	sce_hdr.Load(self_f);
 
 	// Check SCE magic.
@@ -710,11 +674,11 @@ bool SELFDecrypter::LoadHeaders(bool isElf32)
 	self_hdr.Load(self_f);
 
 	// Read the APP INFO.
-	CHECK_ASSERTION(self_f.Seek(self_hdr.se_appinfooff) != -1);
+	self_f.seek(self_hdr.se_appinfooff);
 	app_info.Load(self_f);
 
 	// Read ELF header.
-	CHECK_ASSERTION(self_f.Seek(self_hdr.se_elfoff) != -1);
+	self_f.seek(self_hdr.se_elfoff);
 
 	if (isElf32)
 		elf32_hdr.Load(self_f);
@@ -730,7 +694,7 @@ bool SELFDecrypter::LoadHeaders(bool isElf32)
 			LOG_ERROR(LOADER, "SELF: ELF program header offset is null!");
 			return false;
 		}
-		self_f.Seek(self_hdr.se_phdroff);
+		self_f.seek(self_hdr.se_phdroff);
 		for(u32 i = 0; i < elf32_hdr.e_phnum; ++i)
 		{
 			phdr32_arr.emplace_back();
@@ -747,7 +711,7 @@ bool SELFDecrypter::LoadHeaders(bool isElf32)
 			return false;
 		}
 
-		CHECK_ASSERTION(self_f.Seek(self_hdr.se_phdroff) != -1);
+		self_f.seek(self_hdr.se_phdroff);
 
 		for (u32 i = 0; i < elf64_hdr.e_phnum; ++i)
 		{
@@ -759,7 +723,7 @@ bool SELFDecrypter::LoadHeaders(bool isElf32)
 
 	// Read section info.
 	secinfo_arr.clear();
-	CHECK_ASSERTION(self_f.Seek(self_hdr.se_secinfoff) != -1);
+	self_f.seek(self_hdr.se_secinfoff);
 
 	for(u32 i = 0; i < ((isElf32) ? elf32_hdr.e_phnum : elf64_hdr.e_phnum); ++i)
 	{
@@ -768,12 +732,12 @@ bool SELFDecrypter::LoadHeaders(bool isElf32)
 	}
 
 	// Read SCE version info.
-	CHECK_ASSERTION(self_f.Seek(self_hdr.se_sceveroff) != -1);
+	self_f.seek(self_hdr.se_sceveroff);
 	scev_info.Load(self_f);
 
 	// Read control info.
 	ctrlinfo_arr.clear();
-	CHECK_ASSERTION(self_f.Seek(self_hdr.se_controloff) != -1);
+	self_f.seek(self_hdr.se_controloff);
 
 	u32 i = 0;
 	while(i < self_hdr.se_controlsize)
@@ -795,7 +759,7 @@ bool SELFDecrypter::LoadHeaders(bool isElf32)
 			return true;
 		}
 
-		CHECK_ASSERTION(self_f.Seek(self_hdr.se_shdroff) != -1);
+		self_f.seek(self_hdr.se_shdroff);
 
 		for(u32 i = 0; i < elf32_hdr.e_shnum; ++i)
 		{
@@ -812,7 +776,7 @@ bool SELFDecrypter::LoadHeaders(bool isElf32)
 			return true;
 		}
 
-		CHECK_ASSERTION(self_f.Seek(self_hdr.se_shdroff) != -1);
+		self_f.seek(self_hdr.se_shdroff);
 
 		for(u32 i = 0; i < elf64_hdr.e_shnum; ++i)
 		{
@@ -948,12 +912,12 @@ bool SELFDecrypter::LoadMetadata()
 	u8 *metadata_headers = (u8 *)malloc(metadata_headers_size);
 
 	// Locate and read the encrypted metadata info.
-	CHECK_ASSERTION(self_f.Seek(sce_hdr.se_meta + sizeof(sce_hdr)) != -1);
-	self_f.Read(metadata_info, metadata_info_size);
+	self_f.seek(sce_hdr.se_meta + sizeof(sce_hdr));
+	self_f.read(metadata_info, metadata_info_size);
 
 	// Locate and read the encrypted metadata header and section header.
-	CHECK_ASSERTION(self_f.Seek(sce_hdr.se_meta + sizeof(sce_hdr) + metadata_info_size) != -1);
-	self_f.Read(metadata_headers, metadata_headers_size);
+	self_f.seek(sce_hdr.se_meta + sizeof(sce_hdr) + metadata_info_size);
+	self_f.read(metadata_headers, metadata_headers_size);
 
 	// Find the right keyset from the key vault.
 	SELF_KEY keyset = key_v.FindSelfKey(app_info.self_type, sce_hdr.se_flags, app_info.version);
@@ -1055,8 +1019,8 @@ bool SELFDecrypter::DecryptData()
 				u8 *buf = (u8 *)malloc(meta_shdr[i].data_size);
 
 				// Seek to the section data offset and read the encrypted data.
-				CHECK_ASSERTION(self_f.Seek(meta_shdr[i].data_offset) != -1);
-				self_f.Read(buf, meta_shdr[i].data_size);
+				self_f.seek(meta_shdr[i].data_offset);
+				self_f.read(buf, meta_shdr[i].data_size);
 
 				// Zero out our ctr nonce.
 				memset(ctr_stream_block, 0, sizeof(ctr_stream_block));
@@ -1110,8 +1074,7 @@ bool SELFDecrypter::MakeElf(const std::string& elf, bool isElf32)
 			if (meta_shdr[i].type == 2)
 			{
 				// Seek to the program header data offset and write the data.
-				CHECK_ASSERTION(e.seek(phdr32_arr[meta_shdr[i].program_idx].p_offset) != -1);
-
+				e.seek(phdr32_arr[meta_shdr[i].program_idx].p_offset);
 				e.write(data_buf + data_buf_offset, meta_shdr[i].data_size);
 
 				// Advance the data buffer offset by data size.
@@ -1122,7 +1085,7 @@ bool SELFDecrypter::MakeElf(const std::string& elf, bool isElf32)
 		// Write section headers.
 		if (self_hdr.se_shdroff != 0)
 		{
-			CHECK_ASSERTION(e.seek(elf32_hdr.e_shoff) != -1);
+			e.seek(elf32_hdr.e_shoff);
 
 			for (u32 i = 0; i < elf32_hdr.e_shnum; ++i)
 			{
@@ -1166,9 +1129,7 @@ bool SELFDecrypter::MakeElf(const std::string& elf, bool isElf32)
 					decomp_stream_out.CopyTo(decomp_buf, phdr64_arr[meta_shdr[i].program_idx].p_filesz);
 
 					// Seek to the program header data offset and write the data.
-
-					CHECK_ASSERTION(e.seek(phdr64_arr[meta_shdr[i].program_idx].p_offset) != -1);
-
+					e.seek(phdr64_arr[meta_shdr[i].program_idx].p_offset);
 					e.write(decomp_buf, phdr64_arr[meta_shdr[i].program_idx].p_filesz);
 
 					// Release the decompression buffer.
@@ -1177,8 +1138,7 @@ bool SELFDecrypter::MakeElf(const std::string& elf, bool isElf32)
 				else
 				{
 					// Seek to the program header data offset and write the data.
-					CHECK_ASSERTION(e.seek(phdr64_arr[meta_shdr[i].program_idx].p_offset) != -1);
-					
+					e.seek(phdr64_arr[meta_shdr[i].program_idx].p_offset);
 					e.write(data_buf + data_buf_offset, meta_shdr[i].data_size);
 				}
 
@@ -1190,7 +1150,7 @@ bool SELFDecrypter::MakeElf(const std::string& elf, bool isElf32)
 		// Write section headers.
 		if (self_hdr.se_shdroff != 0)
 		{
-			CHECK_ASSERTION(e.seek(elf64_hdr.e_shoff) != -1);
+			e.seek(elf64_hdr.e_shoff);
 
 			for (u32 i = 0; i < elf64_hdr.e_shnum; ++i)
 			{
@@ -1240,10 +1200,9 @@ bool SELFDecrypter::GetKeyFromRap(u8 *content_id, u8 *npdrm_key)
 
 bool IsSelf(const std::string& path)
 {
-	vfsLocalFile f(nullptr);
+	fs::file f(path);
 
-	if(!f.Open(path))
-		return false;
+	if (!f) return false;
 
 	SceHeader hdr;
 	hdr.Load(f);
@@ -1253,10 +1212,9 @@ bool IsSelf(const std::string& path)
 
 bool IsSelfElf32(const std::string& path)
 {
-	vfsLocalFile f(nullptr);
+	fs::file f(path);
 
-	if(!f.Open(path))
-		return false;
+	if (!f) return false;
 
 	SceHeader hdr;
 	SelfHeader sh;
@@ -1266,9 +1224,8 @@ bool IsSelfElf32(const std::string& path)
 	// Locate the class byte and check it.
 	u8 elf_class[0x8];
 
-	CHECK_ASSERTION(f.Seek(sh.se_elfoff) != -1);
-
-	f.Read(elf_class, 0x8);
+	f.seek(sh.se_elfoff);
+	f.read(elf_class, 0x8);
 
 	return (elf_class[4] == 1);
 }
@@ -1285,7 +1242,7 @@ bool CheckDebugSelf(const std::string& self, const std::string& elf)
 	}
 
 	// Get the key version.
-	CHECK_ASSERTION(s.seek(0x08) != -1);
+	s.seek(0x08);
 
 	u16 key_version;
 	s.read(&key_version, sizeof(key_version));
@@ -1296,7 +1253,7 @@ bool CheckDebugSelf(const std::string& self, const std::string& elf)
 		LOG_WARNING(LOADER, "Debug SELF detected! Removing fake header...");
 
 		// Get the real elf offset.
-		CHECK_ASSERTION(s.seek(0x10) != -1);
+		s.seek(0x10);
 
 		u64 elf_offset;
 		s.read(&elf_offset, sizeof(elf_offset));
@@ -1304,7 +1261,7 @@ bool CheckDebugSelf(const std::string& self, const std::string& elf)
 		// Start at the real elf offset.
 		elf_offset = swap64(elf_offset);
 
-		CHECK_ASSERTION(s.seek(elf_offset) != -1);
+		s.seek(elf_offset);
 
 		// Write the real ELF file back.
 		fs::file e(elf, fom::rewrite);
@@ -1336,9 +1293,9 @@ bool DecryptSelf(const std::string& elf, const std::string& self)
 	if (!CheckDebugSelf(self, elf))
 	{
 		// Set a virtual pointer to the SELF file.
-		vfsLocalFile self_vf(nullptr);
+		fs::file self_vf(self);
 
-		if (!self_vf.Open(self))
+		if (!self_vf)
 			return false;
 
 		// Check the ELF file class (32 or 64 bit).

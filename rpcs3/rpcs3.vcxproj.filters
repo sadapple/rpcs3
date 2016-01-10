@@ -78,9 +78,6 @@
     <ClCompile Include="Gui\KernelExplorer.cpp">
       <Filter>Gui</Filter>
     </ClCompile>
-    <ClCompile Include="Emu\Io\XInput\XInputPadHandler.cpp">
-      <Filter>Io\XInput</Filter>
-    </ClCompile>
     <ClCompile Include="Emu\Cell\PPUProgramCompiler.cpp">
       <Filter>Gui</Filter>
     </ClCompile>
@@ -104,6 +101,21 @@
     </ClCompile>
     <ClCompile Include="Gui\SignInDialog.cpp">
       <Filter>Gui</Filter>
+    </ClCompile>
+    <ClCompile Include="Gui\FrameBase.cpp">
+      <Filter>Gui</Filter>
+    </ClCompile>
+    <ClCompile Include="KeyboardPadHandler.cpp">
+      <Filter>Io\Windows</Filter>
+    </ClCompile>
+    <ClCompile Include="XInputPadHandler.cpp">
+      <Filter>Io\XInput</Filter>
+    </ClCompile>
+    <ClCompile Include="BasicKeyboardHandler.cpp">
+      <Filter>Io\Windows</Filter>
+    </ClCompile>
+    <ClCompile Include="BasicMouseHandler.cpp">
+      <Filter>Io\Windows</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -176,18 +188,6 @@
     <ClInclude Include="Gui\KernelExplorer.h">
       <Filter>Gui</Filter>
     </ClInclude>
-    <ClInclude Include="Emu\Io\Windows\WindowsKeyboardHandler.h">
-      <Filter>Io\Windows</Filter>
-    </ClInclude>
-    <ClInclude Include="Emu\Io\Windows\WindowsMouseHandler.h">
-      <Filter>Io\Windows</Filter>
-    </ClInclude>
-    <ClInclude Include="Emu\Io\Windows\WindowsPadHandler.h">
-      <Filter>Io\Windows</Filter>
-    </ClInclude>
-    <ClInclude Include="Emu\Io\XInput\XInputPadHandler.h">
-      <Filter>Io\XInput</Filter>
-    </ClInclude>
     <ClInclude Include="stdafx_gui.h">
       <Filter>rpcs3</Filter>
     </ClInclude>
@@ -221,6 +221,18 @@
     </ClInclude>
     <ClInclude Include="Gui\PADManager.h">
       <Filter>Gui</Filter>
+    </ClInclude>
+    <ClInclude Include="XInputPadHandler.h">
+      <Filter>Io\XInput</Filter>
+    </ClInclude>
+    <ClInclude Include="KeyboardPadHandler.h">
+      <Filter>Io\Windows</Filter>
+    </ClInclude>
+    <ClInclude Include="BasicKeyboardHandler.h">
+      <Filter>Io\Windows</Filter>
+    </ClInclude>
+    <ClInclude Include="BasicMouseHandler.h">
+      <Filter>Io\Windows</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

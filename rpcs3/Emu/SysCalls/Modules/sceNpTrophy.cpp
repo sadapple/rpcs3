@@ -1,16 +1,14 @@
 #include "stdafx.h"
 #include "Emu/Memory/Memory.h"
-#include "Emu/IdManager.h"
+#include "Emu/FS/VFS.h"
 #include "Emu/System.h"
-#include "Emu/state.h"
+#include "Emu/IdManager.h"
 #include "Emu/SysCalls/Modules.h"
 
 #include "Utilities/rXml.h"
 #include "Loader/TRP.h"
 #include "Loader/TROPUSR.h"
-#include "Emu/FS/VFS.h"
-#include "Emu/FS/vfsDir.h"
-#include "Emu/FS/vfsFileBase.h"
+
 #include "sceNp.h"
 #include "sceNpTrophy.h"
 
@@ -21,7 +19,7 @@ struct trophy_context_t
 	const u32 id = idm::get_last_id();
 
 	std::string trp_name;
-	std::unique_ptr<vfsStream> trp_stream;
+	fs::file trp_stream;
 	std::unique_ptr<TROPUSRLoader> tropusr;
 };
 
@@ -103,10 +101,10 @@ s32 sceNpTrophyCreateContext(vm::ptr<u32> context, vm::cptr<SceNpCommunicationId
 	std::string name = fmt::format("%s_%02d", commId->data, commId->num);
 
 	// open trophy pack file
-	std::unique_ptr<vfsStream> stream(Emu.GetVFS().OpenFile("/app_home/../TROPDIR/" + name + "/TROPHY.TRP", fom::read));
+	fs::file stream(vfs::get("/app_home/../TROPDIR/" + name + "/TROPHY.TRP"));
 
 	// check if exists and opened
-	if (!stream || !stream->IsOpened())
+	if (!stream)
 	{
 		return SCE_NP_TROPHY_ERROR_CONF_DOES_NOT_EXIST;
 	}
@@ -158,7 +156,7 @@ s32 sceNpTrophyRegisterContext(PPUThread& CPU, u32 context, u32 handle, vm::ptr<
 		return SCE_NP_TROPHY_ERROR_UNKNOWN_HANDLE;
 	}
 
-	TRPLoader trp(*ctxt->trp_stream);
+	TRPLoader trp(ctxt->trp_stream);
 	if (!trp.LoadHeader())
 	{
 		sceNpTrophy.error("sceNpTrophyRegisterContext(): SCE_NP_TROPHY_ERROR_ILLEGAL_UPDATE");
@@ -169,7 +167,7 @@ s32 sceNpTrophyRegisterContext(PPUThread& CPU, u32 context, u32 handle, vm::ptr<
 	const size_t kTargetBufferLength = 31;
 	char target[kTargetBufferLength + 1];
 	target[kTargetBufferLength] = 0;
-	strcpy_trunc(target, fmt::format("TROP_%02d.SFM", rpcs3::config.system.language.value()));
+	strcpy_trunc(target, fmt::format("TROP_%02d.SFM", /*rpcs3::config.system.language.value()*/0));
 
 	if (trp.ContainsEntry(target))
 	{
@@ -191,7 +189,7 @@ s32 sceNpTrophyRegisterContext(PPUThread& CPU, u32 context, u32 handle, vm::ptr<
 	for (s32 i = 0; i <= 18; i++)
 	{
 		strcpy_trunc(target, fmt::format("TROP_%02d.SFM", i));
-		if (i != rpcs3::config.system.language.value())
+		if (i != /*rpcs3::config.system.language.value()*/0)
 		{
 			trp.RemoveEntry(target);
 		}
@@ -237,7 +235,7 @@ s32 sceNpTrophyGetRequiredDiskSpace(u32 context, u32 handle, vm::ptr<u64> reqspa
 	}
 
 	// TODO: This is not accurate. It's just an approximation of the real value
-	*reqspace = ctxt->trp_stream->GetSize();
+	*reqspace = ctxt->trp_stream.size();
 
 	return CELL_OK;
 }
@@ -267,9 +265,12 @@ s32 sceNpTrophyGetGameInfo(u32 context, u32 handle, vm::ptr<SceNpTrophyGameDetai
 		return SCE_NP_TROPHY_ERROR_UNKNOWN_HANDLE;
 	}
 
-	std::string path;
+	// TODO: Get the path of the current user
+	const std::string& path = vfs::get("/dev_hdd0/home/00000001/trophy/" + ctxt->trp_name + "/TROPCONF.SFM");
+	
+	// TODO: rXmlDocument can open only real file
+	ASSERT(!fs::get_virtual_device(path)); 
 	rXmlDocument doc;
-	Emu.GetVFS().GetDevice("/dev_hdd0/home/00000001/trophy/" + ctxt->trp_name + "/TROPCONF.SFM", path);  // TODO: Get the path of the current user
 	doc.Load(path);
 
 	std::string titleName;
@@ -394,9 +395,12 @@ s32 sceNpTrophyGetTrophyInfo(u32 context, u32 handle, s32 trophyId, vm::ptr<SceN
 		return SCE_NP_TROPHY_ERROR_UNKNOWN_HANDLE;
 	}
 	
-	std::string path;
-	rXmlDocument doc;
-	Emu.GetVFS().GetDevice("/dev_hdd0/home/00000001/trophy/" + ctxt->trp_name + "/TROPCONF.SFM", path);  // TODO: Get the path of the current user
+	// TODO: Get the path of the current user
+	const std::string& path = vfs::get("/dev_hdd0/home/00000001/trophy/" + ctxt->trp_name + "/TROPCONF.SFM");
+
+	// TODO: rXmlDocument can open only real file
+	ASSERT(!fs::get_virtual_device(path));
+	rXmlDocument doc; 
 	doc.Load(path);
 
 	std::string name;

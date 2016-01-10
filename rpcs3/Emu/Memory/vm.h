@@ -216,38 +216,43 @@ namespace vm
 		return static_cast<u32>(reinterpret_cast<std::uintptr_t>(&reinterpret_cast<char const volatile&>(reinterpret_cast<T*>(0ull)->*member_ptr)));
 	}
 
-	template<typename T> struct cast_ptr
+	template<typename T>
+	struct cast_impl
 	{
-		static_assert(std::is_same<T, u32>::value, "Unsupported VM_CAST() type");
+		static_assert(std::is_same<T, u32>::value, "vm::cast() error: unsupported type");
 	};
 
-	template<> struct cast_ptr<u32>
+	template<>
+	struct cast_impl<u32>
 	{
-		static u32 cast(const u32 addr, const char* file, int line, const char* func)
+		static u32 cast(const u32& addr, const char* loc)
 		{
 			return addr;
 		}
 	};
 
-	template<> struct cast_ptr<u64>
+	template<>
+	struct cast_impl<u64>
 	{
-		static u32 cast(const u64 addr, const char* file, int line, const char* func)
+		static u32 cast(const u64& addr, const char* loc)
 		{
-			return static_cast<u32>(addr) == addr ? static_cast<u32>(addr) : throw fmt::exception(file, line, func, "VM_CAST failed (addr=0x%llx)", addr);
+			return ::narrow<u32>(addr, "Memory address out of range: 0x%llx%s", addr, loc);
 		}
 	};
 
-	template<typename T, bool Se> struct cast_ptr<se_t<T, Se>>
+	template<typename T, bool Se>
+	struct cast_impl<se_t<T, Se>>
 	{
-		static u32 cast(const se_t<T, Se>& addr, const char* file, int line, const char* func)
+		static u32 cast(const se_t<T, Se>& addr, const char* loc)
 		{
-			return cast_ptr<T>::cast(addr, file, line, func);
+			return cast_impl<T>::cast(addr, loc);
 		}
 	};
 
-	template<typename T> u32 impl_cast(const T& addr, const char* file, int line, const char* func)
+	template<typename T>
+	u32 cast(const T& addr, const char* loc)
 	{
-		return cast_ptr<T>::cast(addr, file, line, func);
+		return cast_impl<T>::cast(addr, loc);
 	}
 
 	// Convert specified PS3/PSV virtual memory address to a pointer for common access
@@ -418,14 +423,14 @@ namespace vm
 
 		u32 alloc_new_page()
 		{
-			assert(m_position + m_page_size < (int)m_size);
+			Expects(m_position + m_page_size < (int)m_size);
 			m_position += (int)m_page_size;
 			return m_begin + m_position;
 		}
 
 		u32 dealloc_new_page()
 		{
-			assert(m_position - m_page_size > 0);
+			Expects(m_position - m_page_size > 0);
 			m_position -= (int)m_page_size;
 			return m_begin + m_position;
 		}

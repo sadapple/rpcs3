@@ -12,11 +12,9 @@ SysCallBase sys_event_flag("sys_event_flag");
 
 extern u64 get_system_time();
 
-void lv2_event_flag_t::notify_all(lv2_lock_t& lv2_lock)
+void lv2_event_flag_t::notify_all(lv2_lock_t)
 {
-	CHECK_LV2_LOCK(lv2_lock);
-
-	auto pred = [this](sleep_queue_t::value_type& thread) -> bool
+	auto pred = [this](CPUThread* thread) -> bool
 	{
 		auto& ppu = static_cast<PPUThread&>(*thread);
 
@@ -147,7 +145,7 @@ s32 sys_event_flag_wait(PPUThread& ppu, u32 id, u64 bitptn, u32 mode, vm::ptr<u6
 	}
 
 	// add waiter; protocol is ignored in current implementation
-	sleep_queue_entry_t waiter(ppu, eflag->sq);
+	sleep_entry<CPUThread> waiter(eflag->sq, ppu);
 
 	while (!ppu.unsignal())
 	{

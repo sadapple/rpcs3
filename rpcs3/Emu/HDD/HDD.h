@@ -1,6 +1,4 @@
 #pragma once
-#include "Emu/FS/vfsDevice.h"
-#include "Emu/FS/vfsLocalFile.h"
 
 static const u64 g_hdd_magic = *(u64*)"PS3eHDD\0";
 static const u16 g_hdd_version = 0x0001;
@@ -60,7 +58,6 @@ class vfsHDDFile
 	u64 m_info_block;
 	vfsHDD_Entry m_info;
 	const vfsHDD_Hdr& m_hdd_info;
-	vfsLocalFile& m_hdd;
 	u32 m_position;
 	u64 m_cur_block;
 
@@ -88,9 +85,8 @@ class vfsHDDFile
 	}
 
 public:
-	vfsHDDFile(vfsLocalFile& hdd, const vfsHDD_Hdr& hdd_info)
-		: m_hdd(hdd)
-		, m_hdd_info(hdd_info)
+	vfsHDDFile(const vfsHDD_Hdr& hdd_info)
+		: m_hdd_info(hdd_info)
 	{
 	}
 
@@ -126,28 +122,24 @@ public:
 	}
 };
 
-class vfsDeviceHDD : public vfsDevice
+class vfsDeviceHDD
 {
 	std::string m_hdd_path;
 
 public:
 	vfsDeviceHDD(const std::string& hdd_path);
-
-	virtual vfsFileBase* GetNewFileStream() override;
-	virtual vfsDirBase* GetNewDirStream() override;
 };
 
-class vfsHDD : public vfsFileBase
+class vfsHDD
 {
 	vfsHDD_Hdr m_hdd_info;
-	vfsLocalFile m_hdd_file;
 	const std::string& m_hdd_path;
 	vfsHDD_Entry m_cur_dir;
 	u64 m_cur_dir_block;
 	vfsHDDFile m_file;
 
 public:
-	vfsHDD(vfsDevice* device, const std::string& hdd_path);
+	vfsHDD(const std::string& hdd_path);
 
 	force_inline u32 GetMaxNameLen() const
 	{
@@ -182,7 +174,7 @@ public:
 
 	bool GetNextEntry(u64& block, vfsHDD_Entry& entry, std::string& name);
 
-	virtual bool Open(const std::string& path, u32 mode = fom::read) override;
+	virtual bool Open(const std::string& path, u32 mode = fom::read);
 
 	bool HasEntry(const std::string& name);
 
@@ -192,17 +184,17 @@ public:
 
 	bool RemoveEntry(const std::string& name);
 
-	virtual u64 Write(const void* src, u64 count) override;
+	virtual u64 Write(const void* src, u64 count);
 
-	virtual u64 Read(void* dst, u64 count) override;
+	virtual u64 Read(void* dst, u64 count);
 
-	virtual u64 Seek(s64 offset, fs::seek_mode whence = fs::seek_set) override;
+	virtual u64 Seek(s64 offset, fs::seek_mode whence = fs::seek_set);
 
-	virtual u64 Tell() const override;
+	virtual u64 Tell() const;
 
-	virtual bool Eof() const override;
+	virtual bool Eof() const;
 
-	virtual bool IsOpened() const override;
+	virtual bool IsOpened() const;
 
-	virtual u64 GetSize() const override;
+	virtual u64 GetSize() const;
 };

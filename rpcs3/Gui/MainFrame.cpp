@@ -1,10 +1,10 @@
 #include "stdafx.h"
 #include "stdafx_gui.h"
 #include "rpcs3.h"
-#include "config.h"
 #include "MainFrame.h"
 #include "git-version.h"
 
+#include "Utilities/Registry.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/SysCalls/Modules/cellSysutil.h"
 #include "Emu/System.h"
@@ -72,7 +72,7 @@ MainFrame::MainFrame()
 	, m_sys_menu_opened(false)
 {
 
-	SetLabel(wxString::Format(_PRGNAME_ " v" _PRGVER_ "-" RPCS3_GIT_VERSION));
+	SetLabel(_PRGNAME_ " v" _PRGVER_ "-" RPCS3_GIT_VERSION);
 
 	wxMenuBar* menubar = new wxMenuBar();
 
@@ -164,7 +164,7 @@ MainFrame::MainFrame()
 	wxGetApp().Bind(wxEVT_KEY_DOWN, &MainFrame::OnKeyDown, this);
 	wxGetApp().Bind(wxEVT_DBG_COMMAND, &MainFrame::UpdateUI, this);
 
-	LOG_NOTICE(GENERAL, _PRGNAME_ " v" _PRGVER_ "-" RPCS3_GIT_VERSION);
+	LOG_NOTICE(GENERAL, "%s", _PRGNAME_ " v" _PRGVER_ "-" RPCS3_GIT_VERSION);
 	LOG_NOTICE(GENERAL, "");
 }
 
@@ -181,18 +181,18 @@ void MainFrame::AddPane(wxWindow* wind, const wxString& caption, int flags)
 
 void MainFrame::DoSettings(bool load)
 {
-	if(load)
-	{
-		// replace all '=' with '~' for ini-manager
-		if(!rpcs3::config.gui.aui_mgr_perspective.value().size())
-			rpcs3::config.gui.aui_mgr_perspective = fmt::replace_all(fmt::ToUTF8(m_aui_mgr.SavePerspective()), "=", "~");
+	const std::string& cfg_name = "gui/aui/" + ini_name;
 
-		m_aui_mgr.LoadPerspective(fmt::FromUTF8(fmt::replace_all(rpcs3::config.gui.aui_mgr_perspective.value(), "~", "=")));
+	if (load)
+	{
+		const auto& perspective = fmt::FromUTF8(cfg::to_string(cfg_name));
+
+		m_aui_mgr.LoadPerspective(perspective.empty() ? m_aui_mgr.SavePerspective() : perspective);
 	}
 	else
 	{
-		rpcs3::config.gui.aui_mgr_perspective = fmt::replace_all(fmt::ToUTF8(m_aui_mgr.SavePerspective()), "=", "~");
-		rpcs3::config.save();
+		cfg::from_string(cfg_name, fmt::ToUTF8(m_aui_mgr.SavePerspective()));
+		cfg::save();
 	}
 }
 
@@ -216,16 +216,7 @@ void MainFrame::BootGame(wxCommandEvent& WXUNUSED(event))
 
 	Emu.Stop();
 	
-	if(Emu.BootGame(ctrl.GetPath().ToStdString()))
-	{
-		LOG_SUCCESS(GENERAL, "Game: boot done.");
-
-		if (rpcs3::config.misc.always_start.value())
-		{
-			Emu.Run();
-		}
-	}
-	else
+	if(!Emu.BootGame(ctrl.GetPath().ToStdString()))
 	{
 		LOG_ERROR(GENERAL, "PS3 executable not found in selected folder (%s)", fmt::ToUTF8(ctrl.GetPath())); // passing std::string (test)
 	}
@@ -245,25 +236,23 @@ void MainFrame::InstallPkg(wxCommandEvent& WXUNUSED(event))
 
 	Emu.Stop();
 
-	Emu.GetVFS().Init("/");
-	std::string local_path;
-	Emu.GetVFS().GetDevice("/dev_hdd0/game/", local_path);
-
 	// Open PKG file
 	fs::file pkg_f(ctrl.GetPath().ToStdString());
 
-	// Open file mapping (test)
-	fs::file_read_map pkg_ptr(pkg_f);
-
-	if (!pkg_f || !pkg_ptr)
+	if (!pkg_f || pkg_f.size() < 64)
 	{
 		LOG_ERROR(LOADER, "PKG: Failed to open %s", ctrl.GetPath().ToStdString());
 		return;
 	}
 
-	// Append title ID to the path
-	local_path += '/';
-	local_path.append(pkg_ptr + 55, 9);
+	// Get title ID
+	std::vector<char> title_id(9);
+	pkg_f.seek(55);
+	pkg_f.read(title_id);
+	pkg_f.seek(0);
+
+	// Get full path
+	const auto& local_path = vfs::get("/dev_hdd0/game/").append(std::begin(title_id), std::end(title_id));
 
 	if (!fs::create_dir(local_path))
 	{
@@ -343,11 +332,6 @@ void MainFrame::BootElf(wxCommandEvent& WXUNUSED(event))
 	Emu.Load();
 
 	LOG_SUCCESS(LOADER, "(S)ELF: boot done.");
-	
-	if (rpcs3::config.misc.always_start.value() && Emu.IsReady())
-	{
-		Emu.Run();
-	}
 }
 
 void MainFrame::Pause(wxCommandEvent& WXUNUSED(event))
@@ -507,14 +491,6 @@ void MainFrame::UpdateUI(wxCommandEvent& event)
 
 			default:
 				return;
-		}
-
-		if (event.GetId() == DID_STOPPED_EMU)
-		{
-			if (rpcs3::config.misc.exit_on_stop.value())
-			{
-				wxGetApp().Exit();
-			}
 		}
 	}
 	else

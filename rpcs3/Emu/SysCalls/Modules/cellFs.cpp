@@ -1,13 +1,10 @@
 #include "stdafx.h"
 #include "Emu/Memory/Memory.h"
+#include "Emu/FS/VFS.h"
 #include "Emu/System.h"
 #include "Emu/IdManager.h"
 #include "Emu/SysCalls/Modules.h"
 #include "Emu/SysCalls/Callback.h"
-
-#include "Emu/FS/VFS.h"
-#include "Emu/FS/vfsFile.h"
-#include "Emu/FS/vfsDir.h"
 
 #include "Emu/SysCalls/lv2/sys_fs.h"
 #include "cellFs.h"
@@ -222,20 +219,22 @@ s32 cellFsGetDirectoryEntries(u32 fd, vm::ptr<CellFsDirectoryEntry> entries, u32
 
 	for (; count < entries_size; count++)
 	{
-		if (const auto info = directory->dir->Read())
+		fs::dir_entry info;
+
+		if (directory->dir.read(info))
 		{
-			entries[count].attribute.mode = info->flags & DirEntry_TypeDir ? CELL_FS_S_IFDIR | 0777 : CELL_FS_S_IFREG | 0666;
+			entries[count].attribute.mode = info.is_directory ? CELL_FS_S_IFDIR | 0777 : CELL_FS_S_IFREG | 0666;
 			entries[count].attribute.uid = 1; // ???
 			entries[count].attribute.gid = 1; // ???
-			entries[count].attribute.atime = info->access_time;
-			entries[count].attribute.mtime = info->modify_time;
-			entries[count].attribute.ctime = info->create_time;
-			entries[count].attribute.size = info->size;
+			entries[count].attribute.atime = info.atime;
+			entries[count].attribute.mtime = info.mtime;
+			entries[count].attribute.ctime = info.ctime;
+			entries[count].attribute.size = info.size;
 			entries[count].attribute.blksize = 4096; // ???
 
-			entries[count].entry_name.d_type = info->flags & DirEntry_TypeFile ? CELL_FS_TYPE_REGULAR : CELL_FS_TYPE_DIRECTORY;
-			entries[count].entry_name.d_namlen = u8(std::min<size_t>(info->name.length(), CELL_FS_MAX_FS_FILE_NAME_LENGTH));
-			strcpy_trunc(entries[count].entry_name.d_name, info->name);
+			entries[count].entry_name.d_type = info.is_directory ? CELL_FS_TYPE_DIRECTORY : CELL_FS_TYPE_REGULAR;
+			entries[count].entry_name.d_namlen = u8(std::min<size_t>(info.name.size(), CELL_FS_MAX_FS_FILE_NAME_LENGTH));
+			strcpy_trunc(entries[count].entry_name.d_name, info.name);
 		}
 		else
 		{
@@ -263,13 +262,11 @@ s32 cellFsReadWithOffset(u32 fd, u64 offset, vm::ptr<void> buf, u64 buffer_size,
 
 	std::lock_guard<std::mutex> lock(file->mutex);
 
-	const auto old_position = file->file->Tell();
+	const auto old_pos = file->file.pos(); file->file.seek(offset);
 
-	CHECK_ASSERTION(file->file->Seek(offset) != -1);
+	const auto read = file->file.read(buf.get_ptr(), buffer_size);
 
-	const auto read = file->file->Read(buf.get_ptr(), buffer_size);
-
-	CHECK_ASSERTION(file->file->Seek(old_position) != -1);
+	ASSERT(file->file.seek(old_pos) == old_pos);
 
 	if (nread)
 	{
@@ -294,13 +291,11 @@ s32 cellFsWriteWithOffset(u32 fd, u64 offset, vm::cptr<void> buf, u64 data_size,
 
 	std::lock_guard<std::mutex> lock(file->mutex);
 
-	const auto old_position = file->file->Tell();
+	const auto old_pos = file->file.pos(); file->file.seek(offset);
 
-	CHECK_ASSERTION(file->file->Seek(offset) != -1);
+	const auto written = file->file.write(buf.get_ptr(), data_size);
 
-	const auto written = file->file->Write(buf.get_ptr(), data_size);
-
-	CHECK_ASSERTION(file->file->Seek(old_position) != -1);
+	ASSERT(file->file.seek(old_pos) == old_pos);
 
 	if (nwrite)
 	{
@@ -489,8 +484,8 @@ s32 cellFsStReadStart(u32 fd, u64 offset, u64 size)
 	}
 	}
 
-	offset = std::min<u64>(file->file->GetSize(), offset);
-	size = std::min<u64>(file->file->GetSize() - offset, size);
+	offset = std::min<u64>(file->file.size(), offset);
+	size = std::min<u64>(file->file.size() - offset, size);
 
 	file->st_read_size = size;
 
@@ -504,13 +499,13 @@ s32 cellFsStReadStart(u32 fd, u64 offset, u64 size)
 			if (file->st_total_read - file->st_copied <= file->st_ringbuf_size - file->st_block_size && file->st_total_read < file->st_read_size)
 			{
 				// get buffer position
-				const u32 position = VM_CAST(file->st_buffer + file->st_total_read % file->st_ringbuf_size);
+				const u32 position = vm::cast(file->st_buffer + file->st_total_read % file->st_ringbuf_size, HERE);
 
 				// read data
-				auto old = file->file->Tell();
-				CHECK_ASSERTION(file->file->Seek(offset + file->st_total_read) != -1);
-				auto res = file->file->Read(vm::base(position), file->st_block_size);
-				CHECK_ASSERTION(file->file->Seek(old) != -1);
+				auto old = file->file.pos();
+				file->file.seek(offset + file->st_total_read);
+				auto res = file->file.read(vm::base(position), file->st_block_size);
+				ASSERT(file->file.seek(old) == old);
 
 				// notify
 				file->st_total_read += res;
@@ -594,7 +589,7 @@ s32 cellFsStRead(u32 fd, vm::ptr<u8> buf, u64 size, vm::ptr<u64> rsize)
 	}
 
 	const u64 copied = file->st_copied;
-	const u32 position = VM_CAST(file->st_buffer + copied % file->st_ringbuf_size);
+	const u32 position = vm::cast(file->st_buffer + copied % file->st_ringbuf_size, HERE);
 	const u64 total_read = file->st_total_read;
 	const u64 copy_size = (*rsize = std::min<u64>(size, total_read - copied)); // write rsize
 	
@@ -628,7 +623,7 @@ s32 cellFsStReadGetCurrentAddr(u32 fd, vm::ptr<u32> addr, vm::ptr<u64> size)
 	}
 
 	const u64 copied = file->st_copied;
-	const u32 position = VM_CAST(file->st_buffer + copied % file->st_ringbuf_size);
+	const u32 position = vm::cast(file->st_buffer + copied % file->st_ringbuf_size, HERE);
 	const u64 total_read = file->st_total_read;
 
 	if ((*size = std::min<u64>(file->st_ringbuf_size - (position - file->st_buffer), total_read - copied)))
@@ -752,23 +747,23 @@ bool sdata_check(u32 version, u32 flags, u64 filesizeInput, u64 filesizeTmp)
 
 s32 sdata_unpack(const std::string& packed_file, const std::string& unpacked_file)
 {
-	std::shared_ptr<vfsFileBase> packed_stream(Emu.GetVFS().OpenFile(packed_file, fom::read));
-	std::shared_ptr<vfsFileBase> unpacked_stream(Emu.GetVFS().OpenFile(unpacked_file, fom::rewrite));
+	fs::file packed_stream(vfs::get(packed_file));
+	fs::file unpacked_stream(vfs::get(unpacked_file), fom::rewrite);
 
-	if (!packed_stream || !packed_stream->IsOpened())
+	if (!packed_stream)
 	{
-		cellFs.error("File '%s' not found!", packed_file.c_str());
+		cellFs.error("File '%s' not found!", packed_file);
 		return CELL_ENOENT;
 	}
 
-	if (!unpacked_stream || !unpacked_stream->IsOpened())
+	if (!unpacked_stream)
 	{
-		cellFs.error("File '%s' couldn't be created!", unpacked_file.c_str());
+		cellFs.error("File '%s' couldn't be created!", unpacked_file);
 		return CELL_ENOENT;
 	}
 
 	char buffer[10200];
-	packed_stream->Read(buffer, 256);
+	packed_stream.read(buffer, 256);
 	u32 format = *(be_t<u32>*)&buffer[0];
 	if (format != 0x4E504400) // "NPD\x00"
 	{
@@ -780,7 +775,7 @@ s32 sdata_unpack(const std::string& packed_file, const std::string& unpacked_fil
 	u32 flags = *(be_t<u32>*)&buffer[0x80];
 	u32 blockSize = *(be_t<u32>*)&buffer[0x84];
 	u64 filesizeOutput = *(be_t<u64>*)&buffer[0x88];
-	u64 filesizeInput = packed_stream->GetSize();
+	u64 filesizeInput = packed_stream.size();
 	u32 blockCount = (u32)((filesizeOutput + blockSize - 1) / blockSize);
 
 	// SDATA file is compressed
@@ -804,20 +799,18 @@ s32 sdata_unpack(const std::string& packed_file, const std::string& unpacked_fil
 
 		if (flags & 0x20)
 		{
-			CHECK_ASSERTION(packed_stream->Seek(0x100) != -1);
+			ASSERT(packed_stream.seek(0x100) == 0x100);
 		}
 		else
 		{
-			CHECK_ASSERTION(packed_stream->Seek(startOffset) != -1);
+			ASSERT(packed_stream.seek(startOffset) == startOffset);
 		}
 
 		for (u32 i = 0; i < blockCount; i++)
 		{
 			if (flags & 0x20)
 			{
-				s64 cur;
-				CHECK_ASSERTION((cur = packed_stream->Tell()) != -1);
-				CHECK_ASSERTION(packed_stream->Seek(cur + t1) != -1);
+				packed_stream.seek(t1, fs::seek_cur);
 			}
 
 			if (!(blockCount - i - 1))
@@ -825,8 +818,8 @@ s32 sdata_unpack(const std::string& packed_file, const std::string& unpacked_fil
 				blockSize = (u32)(filesizeOutput - i * blockSize);
 			}
 
-			packed_stream->Read(buffer + 256, blockSize);
-			unpacked_stream->Write(buffer + 256, blockSize);
+			packed_stream.read(buffer + 256, blockSize);
+			unpacked_stream.write(buffer + 256, blockSize);
 		}
 	}
 
@@ -891,13 +884,13 @@ void fsAio(vm::ptr<CellFsAio> aio, bool write, s32 xid, fs_aio_cb_t func)
 	{
 		std::lock_guard<std::mutex> lock(file->mutex);
 
-		const auto old_position = file->file->Tell();
+		const auto old_pos = file->file.pos(); file->file.seek(aio->offset);
 
-		CHECK_ASSERTION(file->file->Seek(aio->offset) != -1);
+		result = write
+			? file->file.write(aio->buf.get_ptr(), aio->size)
+			: file->file.read(aio->buf.get_ptr(), aio->size);
 
-		result = write ? file->file->Write(aio->buf.get_ptr(), aio->size) : file->file->Read(aio->buf.get_ptr(), aio->size);
-
-		CHECK_ASSERTION(file->file->Seek(old_position) != -1);
+		ASSERT(file->file.seek(old_pos) == old_pos);
 	}
 
 	// should be executed directly by FS AIO thread

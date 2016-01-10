@@ -1,13 +1,27 @@
 #include "stdafx.h"
+#include "Utilities/Registry.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/IdManager.h"
 #include "Emu/System.h"
-#include "Emu/state.h"
 #include "Emu/SysCalls/Modules.h"
 
 #include "cellCamera.h"
 
 extern Module<> cellCamera;
+
+const extern cfg::map_entry<bool> g_cfg_camera("io/Camera",
+{
+	{ "Null", false },
+	{ "Fake", true },
+});
+
+const extern cfg::map_entry<CellCameraType> g_cfg_camera_type("io/Camera type",
+{
+	{ "Unknown", CELL_CAMERA_TYPE_UNKNOWN },
+	{ "EyeToy", CELL_CAMERA_EYETOY },
+	{ "PS Eye", CELL_CAMERA_EYETOY2 },
+	{ "UVC 1.1", CELL_CAMERA_USBVIDEOCLASS },
+});
 
 static const char* get_camera_attr_name(s32 value)
 {
@@ -82,7 +96,7 @@ s32 cellCameraInit()
 {
 	cellCamera.warning("cellCameraInit()");
 
-	if (rpcs3::config.io.camera.value() == io_camera_state::null)
+	if (!g_cfg_camera.get())
 	{
 		return CELL_CAMERA_ERROR_DEVICE_NOT_FOUND;
 	}
@@ -94,9 +108,9 @@ s32 cellCameraInit()
 		return CELL_CAMERA_ERROR_ALREADY_INIT;
 	}
 
-	switch (rpcs3::config.io.camera_type.value())
+	switch (g_cfg_camera_type.get())
 	{
-	case io_camera_type::eye_toy:
+	case CELL_CAMERA_EYETOY:
 	{
 		camera->attr[CELL_CAMERA_SATURATION] = { 164 };
 		camera->attr[CELL_CAMERA_BRIGHTNESS] = { 96 };
@@ -115,7 +129,7 @@ s32 cellCameraInit()
 	}
 	break;
 
-	case io_camera_type::play_station_eye:
+	case CELL_CAMERA_EYETOY2:
 	{
 		camera->attr[CELL_CAMERA_SATURATION] = { 64 };
 		camera->attr[CELL_CAMERA_BRIGHTNESS] = { 8 };
@@ -191,14 +205,7 @@ s32 cellCameraGetType(s32 dev_num, vm::ptr<s32> type)
 		return CELL_CAMERA_ERROR_NOT_INIT;
 	}
 
-	switch (rpcs3::config.io.camera_type.value())
-	{
-	case io_camera_type::eye_toy: *type = CELL_CAMERA_EYETOY; break;
-	case io_camera_type::play_station_eye: *type = CELL_CAMERA_EYETOY2; break;
-	case io_camera_type::usb_video_class_1_1: *type = CELL_CAMERA_USBVIDEOCLASS; break;
-	default: *type = CELL_CAMERA_TYPE_UNKNOWN; break;
-	}
-
+	*type = g_cfg_camera_type.get();
 	return CELL_OK;
 }
 
@@ -212,12 +219,12 @@ s32 cellCameraIsAttached(s32 dev_num)
 {
 	cellCamera.warning("cellCameraIsAttached(dev_num=%d)", dev_num);
 
-	if (rpcs3::config.io.camera.value() == io_camera_state::connected)
+	if (g_cfg_camera.get())
 	{
 		return 1;
 	}
 
-	return CELL_OK; // CELL_OK means that no camera is attached
+	return 0; // It's not CELL_OK lol
 }
 
 s32 cellCameraIsOpen(s32 dev_num)

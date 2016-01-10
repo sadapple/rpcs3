@@ -1,7 +1,7 @@
 #pragma once
+
 #include "Gui/MainFrame.h"
 #include "Emu/DbgCommand.h"
-#include "Utilities/Thread.h"
 #include <wx/app.h>
 #include <wx/cmdline.h>
 
@@ -14,8 +14,7 @@ class Rpcs3App : public wxApp
 {
 private:
 	wxCmdLineParser parser;
-	// Used to restore the configuration state after a test run
-	bool HLEExitOnStop;
+
 public:
 	MainFrame* m_MainFrame;
 
@@ -25,7 +24,7 @@ public:
 
 	Rpcs3App();
 
-	void SendDbgCommand(DbgCommand id, CPUThread* thr=nullptr);
+	void SendDbgCommand(DbgCommand id, CPUThread* thr = nullptr);
 };
 
 DECLARE_APP(Rpcs3App)

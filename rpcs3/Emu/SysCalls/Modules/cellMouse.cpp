@@ -1,9 +1,10 @@
 #include "stdafx.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/System.h"
+#include "Emu/IdManager.h"
 #include "Emu/SysCalls/Modules.h"
 
-#include "Emu/Io/Mouse.h"
+#include "Emu/Io/MouseHandler.h"
 #include "cellMouse.h"
 
 extern Module<> sys_io;
@@ -12,31 +13,34 @@ s32 cellMouseInit(u32 max_connect)
 {
 	sys_io.warning("cellMouseInit(max_connect=%d)", max_connect);
 
-	if (Emu.GetMouseManager().IsInited())
-	{
-		return CELL_MOUSE_ERROR_ALREADY_INITIALIZED;
-	}
-
 	if (max_connect > 7)
 	{
 		return CELL_MOUSE_ERROR_INVALID_PARAMETER;
 	}
 
-	Emu.GetMouseManager().Init(max_connect);
+	const auto handler = fxm::import<MouseHandlerBase>(PURE_EXPR(Emu.GetCallbacks().get_mouse_handler()));
+
+	if (!handler)
+	{
+		return CELL_MOUSE_ERROR_ALREADY_INITIALIZED;
+	}
+
+	handler->Init(max_connect);
 	return CELL_OK;
 }
-
 
 s32 cellMouseClearBuf(u32 port_no)
 {
 	sys_io.trace("cellMouseClearBuf(port_no=%d)", port_no);
 
-	if (!Emu.GetMouseManager().IsInited())
+	const auto handler = fxm::get<MouseHandlerBase>();
+
+	if (!handler)
 	{
 		return CELL_MOUSE_ERROR_UNINITIALIZED;
 	}
 
-	if (port_no >= Emu.GetMouseManager().GetMice().size())
+	if (port_no >= handler->GetMice().size())
 	{
 		return CELL_MOUSE_ERROR_INVALID_PARAMETER;
 	}
@@ -48,14 +52,13 @@ s32 cellMouseClearBuf(u32 port_no)
 
 s32 cellMouseEnd()
 {
-	sys_io.trace("cellMouseEnd()");
+	sys_io.notice("cellMouseEnd()");
 
-	if (!Emu.GetMouseManager().IsInited())
+	if (!fxm::remove<MouseHandlerBase>())
 	{
 		return CELL_MOUSE_ERROR_UNINITIALIZED;
 	}
 
-	Emu.GetMouseManager().Close();
 	return CELL_OK;
 }
 
@@ -63,12 +66,14 @@ s32 cellMouseGetInfo(vm::ptr<CellMouseInfo> info)
 {
 	sys_io.trace("cellMouseGetInfo(info=*0x%x)", info);
 
-	if (!Emu.GetMouseManager().IsInited())
+	const auto handler = fxm::get<MouseHandlerBase>();
+
+	if (!handler)
 	{
 		return CELL_MOUSE_ERROR_UNINITIALIZED;
 	}
 
-	const MouseInfo& current_info = Emu.GetMouseManager().GetInfo();
+	const MouseInfo& current_info = handler->GetInfo();
 	info->max_connect = current_info.max_connect;
 	info->now_connect = current_info.now_connect;
 	info->info = current_info.info;
@@ -82,12 +87,15 @@ s32 cellMouseGetInfo(vm::ptr<CellMouseInfo> info)
 s32 cellMouseInfoTabletMode(u32 port_no, vm::ptr<CellMouseInfoTablet> info)
 {
 	sys_io.trace("cellMouseInfoTabletMode(port_no=%d, info=*0x%x)", port_no, info);
-	if (!Emu.GetMouseManager().IsInited())
+
+	const auto handler = fxm::get<MouseHandlerBase>();
+
+	if (!handler)
 	{
 		return CELL_MOUSE_ERROR_UNINITIALIZED;
 	}
 
-	if (port_no >= Emu.GetMouseManager().GetMice().size())
+	if (port_no >= handler->GetMice().size())
 	{
 		return CELL_MOUSE_ERROR_INVALID_PARAMETER;
 	}
@@ -101,16 +109,20 @@ s32 cellMouseInfoTabletMode(u32 port_no, vm::ptr<CellMouseInfoTablet> info)
 s32 cellMouseGetData(u32 port_no, vm::ptr<CellMouseData> data)
 {
 	sys_io.trace("cellMouseGetData(port_no=%d, data=*0x%x)", port_no, data);
-	if (!Emu.GetMouseManager().IsInited())
+
+	const auto handler = fxm::get<MouseHandlerBase>();
+
+	if (!handler)
 	{
 		return CELL_MOUSE_ERROR_UNINITIALIZED;
 	}
-	if (port_no >= Emu.GetMouseManager().GetMice().size())
+
+	if (port_no >= handler->GetMice().size())
 	{
 		return CELL_MOUSE_ERROR_NO_DEVICE;
 	}
 	
-	MouseData& current_data = Emu.GetMouseManager().GetData(port_no);
+	MouseData& current_data = handler->GetData(port_no);
 	data->update = current_data.update;
 	data->buttons = current_data.buttons;
 	data->x_axis = current_data.x_axis;
@@ -147,20 +159,21 @@ s32 cellMouseGetTabletDataList(u32 port_no, u32 data_addr)
 	return CELL_OK;
 }
 
-s32 cellMouseGetRawData(u32 port_no, vm::ptr<struct CellMouseRawData> data)
+s32 cellMouseGetRawData(u32 port_no, vm::ptr<CellMouseRawData> data)
 {
 	sys_io.todo("cellMouseGetRawData(port_no=%d, data=*0x%x)", port_no, data);
-	/*if (!Emu.GetMouseManager().IsInited()) return CELL_MOUSE_ERROR_UNINITIALIZED;
-	if (port_no >= Emu.GetMouseManager().GetMice().size()) return CELL_MOUSE_ERROR_NO_DEVICE;
 
-	CellMouseRawData& current_rawdata = Emu.GetMouseManager().GetRawData(port_no);
-	data += current_rawdata.len;
-	for(s32 i=0; i<current_rawdata.len; i++)
+	const auto handler = fxm::get<MouseHandlerBase>();
+
+	if (!handler)
 	{
-		data += current_rawdata.data[i];
+		return CELL_MOUSE_ERROR_UNINITIALIZED;
 	}
 
-	current_rawdata.len = 0;*/
+	if (port_no >= handler->GetMice().size())
+	{
+		return CELL_MOUSE_ERROR_NO_DEVICE;
+	}
 
 	return CELL_OK;
 }

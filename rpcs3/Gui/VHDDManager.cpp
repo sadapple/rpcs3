@@ -2,7 +2,6 @@
 #include "stdafx_gui.h"
 #include "VHDDManager.h"
 #include "TextInputDialog.h"
-#include "Emu/state.h"
 
 VHDDListDropTarget::VHDDListDropTarget(wxListView* parent) : m_parent(parent)
 {
@@ -68,7 +67,7 @@ VHDDExplorer::VHDDExplorer(wxWindow* parent, const std::string& hdd_path) : wxDi
 	m_list->InsertColumn(2, "Size");
 	m_list->InsertColumn(3, "Creation time");
 
-	m_hdd = new vfsHDD(nullptr, hdd_path);
+	m_hdd = new vfsHDD(hdd_path);
 	UpdateList();
 	m_list->Bind(wxEVT_LIST_BEGIN_DRAG,     &VHDDExplorer::OnListDrag, this);
 	m_list->Bind(wxEVT_LIST_ITEM_ACTIVATED, &VHDDExplorer::DClick, this);
@@ -135,7 +134,7 @@ void VHDDExplorer::Import(const std::string& path, const std::string& to)
 		m_hdd->Write(buf, f.Read(buf, 256));
 	}
 
-	m_hdd->Close();
+	//m_hdd->Close();
 }
 
 void VHDDExplorer::Export(const std::string& path, const std::string& to)
@@ -526,20 +525,8 @@ void VHDDManagerDialog::OnOk(wxCommandEvent& event)
 
 void VHDDManagerDialog::LoadPaths()
 {
-	size_t count = rpcs3::config.vfs.hdd_count.value();
-
-	for (size_t i = 0; i < count; ++i)
-	{
-		m_paths.emplace_back(rpcs3::config.vfs.get_entry_value<std::string>(fmt::format("hdd_path[%d]", i), std::string{}));
-	}
 }
 
 void VHDDManagerDialog::SavePaths()
 {
-	rpcs3::config.vfs.hdd_count = (int)m_paths.size();
-
-	for (size_t i = 0; i < m_paths.size(); ++i)
-	{
-		rpcs3::config.vfs.set_entry_value(fmt::format("hdd_path[%d]", i), m_paths[i]);
-	}
 }

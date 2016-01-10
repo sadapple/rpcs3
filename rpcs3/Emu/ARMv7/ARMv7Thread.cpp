@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/System.h"
-#include "Emu/state.h"
 #include "Emu/IdManager.h"
 #include "Emu/ARMv7/PSVFuncList.h"
 
@@ -178,18 +177,7 @@ bool ARMv7Thread::WriteRegString(const std::string& reg, std::string value)
 
 void ARMv7Thread::do_run()
 {
-	m_dec.reset();
-
-	switch((int)rpcs3::state.config.core.ppu_decoder.value())
-	{
-	case 0:
-	case 1:
-		m_dec.reset(new ARMv7Decoder(*this));
-		break;
-	default:
-		LOG_ERROR(ARMv7, "Invalid CPU decoder mode: %d", (int)rpcs3::state.config.core.ppu_decoder.value());
-		Emu.Pause();
-	}
+	m_dec.reset(new ARMv7Decoder(*this));
 }
 
 void ARMv7Thread::cpu_task()
@@ -265,7 +253,7 @@ armv7_thread::armv7_thread(u32 entry, const std::string& name, u32 stack_size, s
 
 cpu_thread& armv7_thread::args(std::initializer_list<std::string> values)
 {
-	assert(argc == 0);
+	Expects(argc == 0);
 
 	if (!values.size())
 	{

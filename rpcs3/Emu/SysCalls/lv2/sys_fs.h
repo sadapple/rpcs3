@@ -148,8 +148,6 @@ struct CellFsUtimbuf
 
 #pragma pack(pop)
 
-struct vfsStream;
-
 // Stream Support Status (st_status)
 enum : u32
 {
@@ -170,7 +168,7 @@ struct fs_st_cb_rec_t
 
 struct lv2_file_t
 {
-	const std::shared_ptr<vfsStream> file;
+	const fs::file file;
 	const s32 mode;
 	const s32 flags;
 
@@ -193,7 +191,7 @@ struct lv2_file_t
 
 	atomic_t<fs_st_cb_rec_t> st_callback;
 
-	lv2_file_t(std::shared_ptr<vfsStream> file, s32 mode, s32 flags)
+	lv2_file_t(fs::file file, s32 mode, s32 flags)
 		: file(std::move(file))
 		, mode(mode)
 		, flags(flags)
@@ -225,13 +223,11 @@ template<> struct id_traits<lv2_file_t>
 	}
 };
 
-class vfsDirBase;
-
 struct lv2_dir_t
 {
-	const std::shared_ptr<vfsDirBase> dir;
+	fs::dir dir;
 
-	lv2_dir_t(std::shared_ptr<vfsDirBase> dir)
+	lv2_dir_t(fs::dir dir)
 		: dir(std::move(dir))
 	{
 	}

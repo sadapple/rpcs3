@@ -24,7 +24,7 @@ struct lv2_cond_t
 	const u64 name;
 	const std::shared_ptr<lv2_mutex_t> mutex; // associated mutex
 
-	sleep_queue_t sq;
+	sleep_queue<CPUThread> sq;
 
 	lv2_cond_t(const std::shared_ptr<lv2_mutex_t>& mutex, u64 name)
 		: mutex(mutex)
@@ -32,7 +32,7 @@ struct lv2_cond_t
 	{
 	}
 
-	void notify(lv2_lock_t& lv2_lock, sleep_queue_t::value_type& thread);
+	void notify(lv2_lock_t, CPUThread* thread);
 };
 
 class PPUThread;

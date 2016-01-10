@@ -1,11 +1,8 @@
 #include "stdafx.h"
-#include "Log.h"
+#include "Emu/Memory/Memory.h"
 #include "Emu/System.h"
-#include "Emu/state.h"
 #include "Emu/CPU/CPUThreadManager.h"
-#include "Emu/CPU/CPUThread.h"
 #include "Emu/Cell/RawSPUThread.h"
-#include "Emu/SysCalls/SysCalls.h"
 #include "Thread.h"
 
 #ifdef _WIN32
@@ -35,9 +32,9 @@ static void report_fatal_error(const std::string& msg)
 	{
 		throw;
 	}
-	catch (const std::exception& ex)
+	catch (const std::exception& e)
 	{
-		report_fatal_error("Unhandled exception: "s + ex.what());
+		report_fatal_error("Unhandled exception of type '"s + typeid(e).name() + "': "s + e.what());
 	}
 	catch (...)
 	{
@@ -1314,7 +1311,7 @@ thread_ctrl::~thread_ctrl()
 
 std::string thread_ctrl::get_name() const
 {
-	CHECK_ASSERTION(m_name);
+	ASSERT(m_name);
 
 	return m_name();
 }
@@ -1326,10 +1323,10 @@ std::string named_thread_t::get_name() const
 
 void named_thread_t::start()
 {
-	CHECK_ASSERTION(!m_thread);
+	Expects(!m_thread);
 
 	// Get shared_ptr instance (will throw if called from the constructor or the object has been created incorrectly)
-	auto ptr = shared_from_this();
+	auto&& ptr = shared_from_this();
 
 	// Make name getter
 	auto name = [wptr = std::weak_ptr<named_thread_t>(ptr), type = &typeid(*this)]()
@@ -1351,14 +1348,12 @@ void named_thread_t::start()
 		try
 		{
 			LOG_TRACE(GENERAL, "Thread started");
-
 			thread->on_task();
-
 			LOG_TRACE(GENERAL, "Thread ended");
 		}
 		catch (const std::exception& e)
 		{
-			LOG_FATAL(GENERAL, "Exception: %s\nPlease report this to the developers.", e.what());
+			LOG_FATAL(GENERAL, "%s thrown: %s\nPlease report this to the developers.", typeid(e).name(), e.what());
 			Emu.Pause();
 		}
 		catch (EmulationStopped)
@@ -1372,7 +1367,7 @@ void named_thread_t::start()
 
 void named_thread_t::join()
 {
-	CHECK_ASSERTION(m_thread != nullptr);
+	Expects(m_thread != nullptr);
 
 	try
 	{

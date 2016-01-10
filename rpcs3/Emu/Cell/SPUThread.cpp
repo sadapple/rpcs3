@@ -1,7 +1,7 @@
 #include "stdafx.h"
+#include "Utilities/Registry.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/System.h"
-#include "Emu/state.h"
 
 #include "Emu/IdManager.h"
 #include "Emu/Cell/PPUThread.h"
@@ -19,6 +19,13 @@
 #include <cfenv>
 
 extern u64 get_timebased_time();
+
+const extern cfg::map_entry<std::function<std::unique_ptr<CPUDecoder>(SPUThread&)>> g_cfg_spu_decoder("core/SPU Decoder", 2,
+{
+	{ "Interpreter (precise)", [](SPUThread& spu) { spu.optable = &spu_interpreter::precise::g_spu_opcode_table; return nullptr; } },
+	{ "Interpreter (fast)", [](SPUThread& spu) { spu.optable = &spu_interpreter::fast::g_spu_opcode_table; return nullptr; } },
+	{ "Recompiler (asmjit)", [](SPUThread& spu) { return std::make_unique<SPURecompilerDecoder>(spu); } },
+});
 
 // defined here since SPUDisAsm.cpp doesn't exist
 const spu_opcode_table_t<void(SPUDisAsm::*)(spu_opcode_t)> SPUDisAsm::opcodes{ DEFINE_SPU_OPCODES(&SPUDisAsm::), &SPUDisAsm::UNK };
@@ -63,7 +70,7 @@ SPUThread::SPUThread(const std::string& name, u32 index)
 	, index(index)
 	, offset(vm::alloc(0x40000, vm::main))
 {
-	CHECK_ASSERTION(offset);
+	Ensures(offset);
 }
 
 SPUThread::~SPUThread()
@@ -106,8 +113,8 @@ void SPUThread::cpu_task()
 
 	if (!custom_task && !m_dec)
 	{
-		// Select opcode table (TODO)
-		const auto& table = rpcs3::state.config.core.spu_decoder.value() == spu_decoder_type::interpreter_precise ? spu_interpreter::precise::g_spu_opcode_table : spu_interpreter::fast::g_spu_opcode_table;
+		// Select opcode table
+		const auto& table = *optable;
 
 		// LS base address
 		const auto base = vm::_ptr<const u32>(offset);
@@ -202,28 +209,7 @@ void SPUThread::close_stack()
 
 void SPUThread::do_run()
 {
-	m_dec.reset();
-
-	switch (auto mode = rpcs3::state.config.core.spu_decoder.value())
-	{
-	case spu_decoder_type::interpreter_precise: // Interpreter 1 (Precise)
-	case spu_decoder_type::interpreter_fast: // Interpreter 2 (Fast)
-	{
-		break;
-	}
-
-	case spu_decoder_type::recompiler_asmjit:
-	{
-		m_dec.reset(new SPURecompilerDecoder(*this));
-		break;
-	}
-
-	default:
-	{
-		LOG_ERROR(SPU, "Invalid SPU decoder mode: %d", (u8)mode);
-		Emu.Pause();
-	}
-	}
+	m_dec = g_cfg_spu_decoder.get()(*this);
 }
 
 void SPUThread::fast_call(u32 ls_addr)
@@ -268,7 +254,7 @@ void SPUThread::do_dma_transfer(u32 cmd, spu_mfc_arg_t args)
 		_mm_mfence();
 	}
 
-	u32 eal = VM_CAST(args.ea);
+	u32 eal = vm::cast(args.ea, HERE);
 
 	if (eal >= SYS_SPU_THREAD_BASE_LOW && m_type == CPU_THREAD_SPU) // SPU Thread Group MMIO (LS and SNR)
 	{
@@ -413,7 +399,7 @@ void SPUThread::process_mfc_cmd(u32 cmd)
 			break;
 		}
 
-		const u32 raddr = VM_CAST(ch_mfc_args.ea);
+		const u32 raddr = vm::cast(ch_mfc_args.ea, HERE);
 
 		vm::reservation_acquire(vm::base(offset + ch_mfc_args.lsa), raddr, 128);
 
@@ -434,7 +420,7 @@ void SPUThread::process_mfc_cmd(u32 cmd)
 			break;
 		}
 
-		if (vm::reservation_update(VM_CAST(ch_mfc_args.ea), vm::base(offset + ch_mfc_args.lsa), 128))
+		if (vm::reservation_update(vm::cast(ch_mfc_args.ea, HERE), vm::base(offset + ch_mfc_args.lsa), 128))
 		{
 			if (last_raddr == 0)
 			{
@@ -466,9 +452,9 @@ void SPUThread::process_mfc_cmd(u32 cmd)
 			break;
 		}
 
-		vm::reservation_op(VM_CAST(ch_mfc_args.ea), 128, [this]()
+		vm::reservation_op(vm::cast(ch_mfc_args.ea, HERE), 128, [this]()
 		{
-			std::memcpy(vm::base_priv(VM_CAST(ch_mfc_args.ea)), vm::base(offset + ch_mfc_args.lsa), 128);
+			std::memcpy(vm::base_priv(vm::cast(ch_mfc_args.ea, HERE)), vm::base(offset + ch_mfc_args.lsa), 128);
 		});
 
 		if (last_raddr != 0 && vm::g_tls_did_break_reservation)
@@ -824,7 +810,7 @@ void SPUThread::set_ch_value(u32 ch, u32 value)
 					return ch_in_mbox.set_values(1, CELL_ENOTCONN); // TODO: check error passing
 				}
 
-				if (queue->events.size() >= queue->size)
+				if (queue->events() >= queue->size)
 				{
 					return ch_in_mbox.set_values(1, CELL_EBUSY);
 				}
@@ -861,7 +847,7 @@ void SPUThread::set_ch_value(u32 ch, u32 value)
 				}
 
 				// TODO: check passing spup value
-				if (queue->events.size() >= queue->size)
+				if (queue->events() >= queue->size)
 				{
 					LOG_WARNING(SPU, "sys_spu_thread_throw_event(spup=%d, data0=0x%x, data1=0x%x) failed (queue is full)", spup, (value & 0x00ffffff), data);
 					return;
@@ -1261,17 +1247,15 @@ void SPUThread::stop_and_signal(u32 code)
 			throw EXCEPTION("Unexpected SPU Thread Group state (%d)", group->state);
 		}
 
-		if (queue->events.size())
+		if (queue->events())
 		{
-			auto& event = queue->events.front();
+			const auto event = queue->pop(lv2_lock);
 			ch_in_mbox.set_values(4, CELL_OK, static_cast<u32>(std::get<1>(event)), static_cast<u32>(std::get<2>(event)), static_cast<u32>(std::get<3>(event)));
-
-			queue->events.pop_front();
 		}
 		else
 		{
 			// add waiter; protocol is ignored in current implementation
-			sleep_queue_entry_t waiter(*this, queue->sq);
+			sleep_entry<CPUThread> waiter(queue->thread_queue(lv2_lock), *this);
 
 			// wait on the event queue
 			while (!unsignal())

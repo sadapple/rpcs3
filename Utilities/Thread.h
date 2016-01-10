@@ -57,7 +57,7 @@ public:
 	template<typename T>
 	static inline void at_exit(T&& func)
 	{
-		CHECK_ASSERTION(g_tls_this_thread);
+		Expects(g_tls_this_thread);
 
 		g_tls_this_thread->m_atexit.emplace_front(std::forward<T>(func));
 	}
@@ -141,7 +141,7 @@ public:
 	bool is_started() const { return m_thread.operator bool(); }
 
 	// Compare with the current thread
-	bool is_current() const { CHECK_ASSERTION(m_thread); return thread_ctrl::get_current() == m_thread.get(); }
+	bool is_current() const { Expects(m_thread); return thread_ctrl::get_current() == m_thread.get(); }
 
 	// Get thread_ctrl
 	const thread_ctrl* get_thread_ctrl() const { return m_thread.get(); }
@@ -177,6 +177,7 @@ extern const std::function<bool()> SQUEUE_NEVER_EXIT;
 
 bool squeue_test_exit();
 
+// TODO: eliminate this boolshit
 template<typename T, u32 sq_size = 256>
 class squeue_t
 {
@@ -232,8 +233,8 @@ public:
 
 		while (u32 res = m_sync.atomic_op([&pos](squeue_sync_var_t& sync) -> u32
 		{
-			assert(sync.count <= sq_size);
-			assert(sync.position < sq_size);
+			Expects(sync.count <= sq_size);
+			Expects(sync.position < sq_size);
 
 			if (sync.push_lock)
 			{
@@ -262,9 +263,9 @@ public:
 
 		m_sync.atomic_op([](squeue_sync_var_t& sync)
 		{
-			assert(sync.count <= sq_size);
-			assert(sync.position < sq_size);
-			assert(sync.push_lock);
+			Expects(sync.count <= sq_size);
+			Expects(sync.position < sq_size);
+			Expects(sync.push_lock);
 			sync.push_lock = 0;
 			sync.count++;
 		});
@@ -295,8 +296,8 @@ public:
 
 		while (u32 res = m_sync.atomic_op([&pos](squeue_sync_var_t& sync) -> u32
 		{
-			assert(sync.count <= sq_size);
-			assert(sync.position < sq_size);
+			Expects(sync.count <= sq_size);
+			Expects(sync.position < sq_size);
 
 			if (!sync.count)
 			{
@@ -325,9 +326,9 @@ public:
 
 		m_sync.atomic_op([](squeue_sync_var_t& sync)
 		{
-			assert(sync.count <= sq_size);
-			assert(sync.position < sq_size);
-			assert(sync.pop_lock);
+			Expects(sync.count <= sq_size);
+			Expects(sync.position < sq_size);
+			Expects(sync.pop_lock);
 			sync.pop_lock = 0;
 			sync.position++;
 			sync.count--;
@@ -359,13 +360,13 @@ public:
 
 	bool peek(T& data, u32 start_pos, const std::function<bool()>& test_exit)
 	{
-		assert(start_pos < sq_size);
+		Expects(start_pos < sq_size);
 		u32 pos = 0;
 
 		while (u32 res = m_sync.atomic_op([&pos, start_pos](squeue_sync_var_t& sync) -> u32
 		{
-			assert(sync.count <= sq_size);
-			assert(sync.position < sq_size);
+			Expects(sync.count <= sq_size);
+			Expects(sync.position < sq_size);
 
 			if (sync.count <= start_pos)
 			{
@@ -394,9 +395,9 @@ public:
 
 		m_sync.atomic_op([](squeue_sync_var_t& sync)
 		{
-			assert(sync.count <= sq_size);
-			assert(sync.position < sq_size);
-			assert(sync.pop_lock);
+			Expects(sync.count <= sq_size);
+			Expects(sync.position < sq_size);
+			Expects(sync.pop_lock);
 			sync.pop_lock = 0;
 		});
 
@@ -435,7 +436,7 @@ public:
 	public:
 		T& operator [] (u32 index)
 		{
-			assert(index < m_count);
+			Expects(index < m_count);
 			index += m_pos;
 			index = index < sq_size ? index : index - sq_size;
 			return m_data[index];
@@ -448,8 +449,8 @@ public:
 
 		while (m_sync.atomic_op([&pos, &count](squeue_sync_var_t& sync) -> u32
 		{
-			assert(sync.count <= sq_size);
-			assert(sync.position < sq_size);
+			Expects(sync.count <= sq_size);
+			Expects(sync.position < sq_size);
 
 			if (sync.pop_lock || sync.push_lock)
 			{
@@ -471,9 +472,9 @@ public:
 
 		m_sync.atomic_op([](squeue_sync_var_t& sync)
 		{
-			assert(sync.count <= sq_size);
-			assert(sync.position < sq_size);
-			assert(sync.pop_lock && sync.push_lock);
+			Expects(sync.count <= sq_size);
+			Expects(sync.position < sq_size);
+			Expects(sync.pop_lock && sync.push_lock);
 			sync.pop_lock = 0;
 			sync.push_lock = 0;
 		});
@@ -486,8 +487,8 @@ public:
 	{
 		while (m_sync.atomic_op([](squeue_sync_var_t& sync) -> u32
 		{
-			assert(sync.count <= sq_size);
-			assert(sync.position < sq_size);
+			Expects(sync.count <= sq_size);
+			Expects(sync.position < sq_size);
 
 			if (sync.pop_lock || sync.push_lock)
 			{

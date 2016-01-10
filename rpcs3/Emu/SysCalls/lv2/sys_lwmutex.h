@@ -54,7 +54,7 @@ struct lv2_lwmutex_t
 	// this object is not truly a mutex and its syscall names may be wrong, it's probably a sleep queue or something
 	std::atomic<u32> signaled{ 0 };
 
-	sleep_queue_t sq;
+	sleep_queue<CPUThread> sq;
 
 	lv2_lwmutex_t(u32 protocol, u64 name)
 		: protocol(protocol)
@@ -62,7 +62,7 @@ struct lv2_lwmutex_t
 	{
 	}
 
-	void unlock(lv2_lock_t& lv2_lock);
+	void unlock(lv2_lock_t);
 };
 
 // Aux

@@ -52,7 +52,7 @@ namespace _log
 		// Initialization (max level enabled by default)
 		channel(const std::string& name, level = level::trace);
 
-		virtual ~channel() = default;
+		virtual ~channel();
 
 		// Log without formatting
 		force_inline void log(level sev, const std::string& text) const
@@ -71,7 +71,7 @@ namespace _log
 
 #define GEN_LOG_METHOD(_sev)\
 		template<typename... Args>\
-		force_inline void _sev(const char* fmt, const Args&... args)\
+		force_inline void _sev(const char* fmt, const Args&... args) const\
 		{\
 			return format<Args...>(level::_sev, fmt, args...);\
 		}

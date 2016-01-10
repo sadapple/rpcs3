@@ -1,11 +1,9 @@
 #include "stdafx.h"
 #include "Loader.h"
-#include "PSF.h"
-#include "Emu/FS/vfsLocalFile.h"
 
 namespace loader
 {
-	bool loader::load(vfsStream& stream)
+	bool loader::load(const fs::file& stream)
 	{
 		for (auto i : m_handlers)
 		{
@@ -23,16 +21,16 @@ namespace loader
 			else
 			{
 				LOG_NOTICE(LOADER, "loader::init() failed: %s", i->get_error_code().c_str());
-				stream.Seek(i->get_stream_offset());
+				stream.seek(i->get_stream_offset());
 			}
 		}
 
 		return false;
 	}
 
-	handler::error_code handler::init(vfsStream& stream)
+	handler::error_code handler::init(const fs::file& stream)
 	{
-		m_stream_offset = stream.Tell();
+		m_stream_offset = stream.pos();
 		m_stream = &stream;
 
 		return ok;

@@ -1,7 +1,6 @@
 #pragma once
-#include "Loader.h"
 
-struct vfsStream;
+#include "Loader.h"
 
 namespace loader
 {
@@ -129,7 +128,7 @@ namespace loader
 			std::vector<phdr> m_phdrs;
 			std::vector<shdr> m_shdrs;
 
-			error_code init(vfsStream& stream) override;
+			error_code init(const fs::file& stream) override;
 			error_code load() override;
 			error_code load_data(u32 offset, bool skip_writeable = false);
 

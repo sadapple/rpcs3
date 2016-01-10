@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #ifdef LLVM_AVAILABLE
+#include "Utilities/Registry.h"
 #include "Emu/System.h"
-#include "Emu/state.h"
 #include "Emu/Cell/PPUDisAsm.h"
 #include "Emu/Cell/PPULLVMRecompiler.h"
 #include "Emu/Memory/Memory.h"
@@ -36,6 +36,11 @@ using namespace ppu_recompiler_llvm;
 #ifdef ID_MANAGER_INCLUDED
 #error "ID Manager cannot be used in this module"
 #endif
+
+const extern cfg::bool_entry g_cfg_llvm_exclusion_range("core/llvm/Compiled blocks exclusion");
+const extern cfg::int_entry<> g_cfg_llvm_range_min("core/llvm/Excluded block range min", 200);
+const extern cfg::int_entry<> g_cfg_llvm_range_max("core/llvm/Excluded block range max", 250);
+const extern cfg::int_entry<> g_cfg_llvm_threshold("core/llvm/Compilation threshold", 1000);
 
 // PS3 can address 32 bits aligned on 4 bytes boundaries : 2^30 pointers
 #define VIRTUAL_INSTRUCTION_COUNT 0x40000000
@@ -248,8 +253,7 @@ const Executable RecompilationEngine::GetCompiledExecutableIfAvailable(u32 addre
 	if (!isAddressCommited(address / 4))
 		return nullptr;
 	u32 id = FunctionCache[address / 4].second;
-	if (rpcs3::state.config.core.llvm.exclusion_range.value() &&
-		(id >= rpcs3::state.config.core.llvm.min_id.value() && id <= rpcs3::state.config.core.llvm.max_id.value()))
+	if (g_cfg_llvm_exclusion_range && id >= g_cfg_llvm_range_min && id <= g_cfg_llvm_range_max)
 		return nullptr;
 	return FunctionCache[address / 4].first;
 }
@@ -319,7 +323,7 @@ bool RecompilationEngine::IncreaseHitCounterAndBuild(u32 address) {
 	BlockEntry &block = It->second;
 	if (!block.is_compiled) {
 		block.num_hits++;
-		if (block.num_hits >= rpcs3::state.config.core.llvm.threshold.value()) {
+		if (block.num_hits >= g_cfg_llvm_threshold) {
 			CompileBlock(block);
 			return true;
 		}
@@ -433,7 +437,7 @@ std::pair<Executable, llvm::ExecutionEngine *> RecompilationEngine::compile(cons
 
 	LLVMDisasmDispose(disassembler);*/
 
-	assert(function != nullptr);
+	Ensures(function != nullptr);
 	return std::make_pair((Executable)function, execution_engine);
 }
 
@@ -656,8 +660,7 @@ u32 ppu_recompiler_llvm::CPUHybridDecoderRecompiler::ExecuteTillReturn(PPUThread
 		case BranchType::NonBranch:
 			break;
 		default:
-			assert(0);
-			break;
+			throw fmt::exception("Invalid branch type 0x%x" HERE, branch_type);
 		}
 	}
 

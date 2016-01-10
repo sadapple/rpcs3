@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Loader/Loader.h"
+#include "Loader/PSF.h"
 #include "DbgCommand.h"
 
 enum class frame_type;
@@ -9,11 +10,12 @@ struct EmuCallbacks
 {
 	std::function<void(std::function<void()>)> call_after;
 	std::function<void()> process_events;
+	std::function<void()> exit;
 	std::function<void(DbgCommand, class CPUThread*)> send_dbg_command;
-	std::function<std::unique_ptr<class KeyboardHandlerBase>()> get_kb_handler;
-	std::function<std::unique_ptr<class MouseHandlerBase>()> get_mouse_handler;
-	std::function<std::unique_ptr<class PadHandlerBase>()> get_pad_handler;
-	std::function<std::unique_ptr<class GSFrameBase>(frame_type)> get_gs_frame;
+	std::function<std::shared_ptr<class KeyboardHandlerBase>()> get_kb_handler;
+	std::function<std::shared_ptr<class MouseHandlerBase>()> get_mouse_handler;
+	std::function<std::shared_ptr<class PadHandlerBase>()> get_pad_handler;
+	std::function<std::unique_ptr<class GSFrameBase>(frame_type, size2i)> get_gs_frame;
 	std::function<std::shared_ptr<class GSRender>()> get_gs_render;
 	std::function<std::shared_ptr<class AudioThread>()> get_audio;
 	std::function<std::shared_ptr<class MsgDialogBase>()> get_msg_dialog;
@@ -32,16 +34,8 @@ enum Status : u32
 class EmulationStopped {};
 
 class CPUThreadManager;
-class PadManager;
-class KeyboardManager;
-class MouseManager;
-class GSManager;
-class AudioManager;
 class CallbackManager;
-class CPUThread;
-class EventManager;
 class ModuleManager;
-struct VFS;
 
 struct EmuInfo
 {
@@ -88,15 +82,8 @@ class Emulator final
 	std::mutex m_core_mutex;
 
 	std::unique_ptr<CPUThreadManager> m_thread_manager;
-	std::unique_ptr<PadManager>       m_pad_manager;
-	std::unique_ptr<KeyboardManager>  m_keyboard_manager;
-	std::unique_ptr<MouseManager>     m_mouse_manager;
-	std::unique_ptr<GSManager>        m_gs_manager;
-	std::unique_ptr<AudioManager>     m_audio_manager;
 	std::unique_ptr<CallbackManager>  m_callback_manager;
-	std::unique_ptr<EventManager>     m_event_manager;
 	std::unique_ptr<ModuleManager>    m_module_manager;
-	std::unique_ptr<VFS>              m_vfs;
 
 	EmuInfo m_info;
 	loader::loader m_loader;
@@ -105,6 +92,7 @@ class Emulator final
 	std::string m_elf_path;
 	std::string m_title_id;
 	std::string m_title;
+	psf::registry m_psf;
 
 public:
 	Emulator();
@@ -161,8 +149,6 @@ public:
 
 	void Init();
 	void SetPath(const std::string& path, const std::string& elf_path = "");
-	void SetTitleID(const std::string& id);
-	void SetTitle(const std::string& title);
 	void CreateConfig(const std::string& name);
 
 	const std::string& GetPath() const
@@ -180,6 +166,11 @@ public:
 		return m_title;
 	}
 
+	const psf::registry& GetPSF() const
+	{
+		return m_psf;
+	}
+
 	u64 GetPauseTime()
 	{
 		return m_pause_amend_time;
@@ -187,16 +178,9 @@ public:
 
 	std::mutex&       GetCoreMutex()       { return m_core_mutex; }
 	CPUThreadManager& GetCPU()             { return *m_thread_manager; }
-	PadManager&       GetPadManager()      { return *m_pad_manager; }
-	KeyboardManager&  GetKeyboardManager() { return *m_keyboard_manager; }
-	MouseManager&     GetMouseManager()    { return *m_mouse_manager; }
-	GSManager&        GetGSManager()       { return *m_gs_manager; }
-	AudioManager&     GetAudioManager()    { return *m_audio_manager; }
 	CallbackManager&  GetCallbackManager() { return *m_callback_manager; }
-	VFS&              GetVFS()             { return *m_vfs; }
 	std::vector<u64>& GetBreakPoints()     { return m_break_points; }
 	std::vector<u64>& GetMarkedPoints()    { return m_marked_points; }
-	EventManager&     GetEventManager()    { return *m_event_manager; }
 	ModuleManager&    GetModuleManager()   { return *m_module_manager; }
 
 	void ResetInfo()
@@ -260,14 +244,26 @@ public:
 
 extern Emulator Emu;
 
-using lv2_lock_t = std::unique_lock<std::mutex>;
-
-inline bool check_lv2_lock(lv2_lock_t& lv2_lock)
+// Simple class for global mutex to pass unique_lock and check it
+struct lv2_lock_t
 {
-	return lv2_lock.owns_lock() && lv2_lock.mutex() == &Emu.GetCoreMutex();
-}
+	using type = std::unique_lock<std::mutex>;
 
-#define LV2_LOCK lv2_lock_t lv2_lock(Emu.GetCoreMutex())
-#define LV2_DEFER_LOCK lv2_lock_t lv2_lock
-#define CHECK_LV2_LOCK(x) if (!check_lv2_lock(x)) throw EXCEPTION("lv2_lock is invalid or not locked")
+	type& ref;
+
+	lv2_lock_t(type& lv2_lock)
+		: ref(lv2_lock)
+	{
+		Expects(ref.owns_lock());
+		Expects(ref.mutex() == &Emu.GetCoreMutex());
+	}
+
+	operator type&() const
+	{
+		return ref;
+	}
+};
+
+#define LV2_LOCK lv2_lock_t::type lv2_lock(Emu.GetCoreMutex())
+
 #define CHECK_EMU_STATUS if (Emu.IsStopped()) throw EmulationStopped{}

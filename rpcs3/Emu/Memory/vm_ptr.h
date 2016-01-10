@@ -40,31 +40,31 @@ namespace vm
 		// get vm pointer to a struct member
 		template<typename MT, typename T2, typename = if_comparable_t<T, T2>> _ptr_base<MT> ptr(MT T2::*const mptr) const
 		{
-			return{ VM_CAST(m_addr) + get_offset(mptr), vm::addr };
+			return{ vm::cast(m_addr, HERE) + get_offset(mptr), vm::addr };
 		}
 
 		// get vm pointer to a struct member with array subscription
 		template<typename MT, typename T2, typename ET = std::remove_extent_t<MT>, typename = if_comparable_t<T, T2>> _ptr_base<ET> ptr(MT T2::*const mptr, u32 index) const
 		{
-			return{ VM_CAST(m_addr) + get_offset(mptr) + SIZE_32(ET) * index, vm::addr };
+			return{ vm::cast(m_addr, HERE) + get_offset(mptr) + SIZE_32(ET) * index, vm::addr };
 		}
 
 		// get vm reference to a struct member
 		template<typename MT, typename T2, typename = if_comparable_t<T, T2>> _ref_base<MT> ref(MT T2::*const mptr) const
 		{
-			return{ VM_CAST(m_addr) + get_offset(mptr), vm::addr };
+			return{ vm::cast(m_addr, HERE) + get_offset(mptr), vm::addr };
 		}
 
 		// get vm reference to a struct member with array subscription
 		template<typename MT, typename T2, typename ET = std::remove_extent_t<MT>, typename = if_comparable_t<T, T2>> _ref_base<ET> ref(MT T2::*const mptr, u32 index) const
 		{
-			return{ VM_CAST(m_addr) + get_offset(mptr) + SIZE_32(ET) * index, vm::addr };
+			return{ vm::cast(m_addr, HERE) + get_offset(mptr) + SIZE_32(ET) * index, vm::addr };
 		}
 
 		// get vm reference
 		_ref_base<T, u32> ref() const
 		{
-			return{ VM_CAST(m_addr), vm::addr };
+			return{ vm::cast(m_addr, HERE), vm::addr };
 		}
 		
 		/*[[deprecated("Use constructor instead")]]*/ void set(addr_type value)
@@ -79,12 +79,12 @@ namespace vm
 
 		T* get_ptr() const
 		{
-			return static_cast<T*>(vm::base(VM_CAST(m_addr)));
+			return static_cast<T*>(vm::base(vm::cast(m_addr, HERE)));
 		}
 
 		T* get_ptr_priv() const
 		{
-			return static_cast<T*>(vm::base_priv(VM_CAST(m_addr)));
+			return static_cast<T*>(vm::base_priv(vm::cast(m_addr, HERE)));
 		}
 
 		T* operator ->() const
@@ -98,13 +98,13 @@ namespace vm
 		{
 			static_assert(!std::is_void<T>::value, "vm::_ptr_base<> error: operator[] is not available for void pointers");
 
-			return *static_cast<T*>(vm::base(VM_CAST(m_addr) + SIZE_32(T) * index));
+			return *static_cast<T*>(vm::base(vm::cast(m_addr, HERE) + SIZE_32(T) * index));
 		}
 
 		// enable only the conversions which are originally possible between pointer types
 		template<typename T2, typename AT2, typename = std::enable_if_t<std::is_convertible<T*, T2*>::value>> operator _ptr_base<T2, AT2>() const
 		{
-			return{ VM_CAST(m_addr), vm::addr };
+			return{ vm::cast(m_addr, HERE), vm::addr };
 		}
 
 		//template<typename T2, typename = std::enable_if_t<std::is_convertible<T*, T2*>::value>> explicit operator T2*() const
@@ -143,7 +143,7 @@ namespace vm
 			static_assert(!std::is_void<T>::value, "vm::_ptr_base<> error: operator++ is not available for void pointers");
 
 			const addr_type result = m_addr;
-			m_addr = VM_CAST(m_addr) + SIZE_32(T);
+			m_addr = vm::cast(m_addr, HERE) + SIZE_32(T);
 			return{ result, vm::addr };
 		}
 
@@ -152,7 +152,7 @@ namespace vm
 		{
 			static_assert(!std::is_void<T>::value, "vm::_ptr_base<> error: operator++ is not available for void pointers");
 
-			m_addr = VM_CAST(m_addr) + SIZE_32(T);
+			m_addr = vm::cast(m_addr, HERE) + SIZE_32(T);
 			return *this;
 		}
 
@@ -162,7 +162,7 @@ namespace vm
 			static_assert(!std::is_void<T>::value, "vm::_ptr_base<> error: operator-- is not available for void pointers");
 
 			const addr_type result = m_addr;
-			m_addr = VM_CAST(m_addr) - SIZE_32(T);
+			m_addr = vm::cast(m_addr, HERE) - SIZE_32(T);
 			return{ result, vm::addr };
 		}
 
@@ -171,7 +171,7 @@ namespace vm
 		{
 			static_assert(!std::is_void<T>::value, "vm::_ptr_base<> error: operator-- is not available for void pointers");
 
-			m_addr = VM_CAST(m_addr) - SIZE_32(T);
+			m_addr = vm::cast(m_addr, HERE) - SIZE_32(T);
 			return *this;
 		}
 
@@ -179,7 +179,7 @@ namespace vm
 		{
 			static_assert(!std::is_void<T>::value, "vm::_ptr_base<> error: operator+= is not available for void pointers");
 
-			m_addr = VM_CAST(m_addr) + count * SIZE_32(T);
+			m_addr = vm::cast(m_addr, HERE) + count * SIZE_32(T);
 			return *this;
 		}
 
@@ -187,7 +187,7 @@ namespace vm
 		{
 			static_assert(!std::is_void<T>::value, "vm::_ptr_base<> error: operator-= is not available for void pointers");
 
-			m_addr = VM_CAST(m_addr) - count * SIZE_32(T);
+			m_addr = vm::cast(m_addr, HERE) - count * SIZE_32(T);
 			return *this;
 		}
 	};
@@ -230,7 +230,7 @@ namespace vm
 		// conversion to another function pointer
 		template<typename AT2> operator _ptr_base<RT(T...), AT2>() const
 		{
-			return{ VM_CAST(m_addr), vm::addr };
+			return{ vm::cast(m_addr, HERE), vm::addr };
 		}
 
 		explicit operator bool() const
@@ -290,13 +290,13 @@ namespace vm
 		// perform static_cast (for example, vm::ptr<void> to vm::ptr<char>)
 		template<typename CT, typename T, typename AT, typename = decltype(static_cast<to_be_t<CT>*>(std::declval<T*>()))> inline _ptr_base<to_be_t<CT>> static_ptr_cast(const _ptr_base<T, AT>& other)
 		{
-			return{ VM_CAST(other.addr()), vm::addr };
+			return{ vm::cast(other.addr(), HERE), vm::addr };
 		}
 
 		// perform const_cast (for example, vm::cptr<char> to vm::ptr<char>)
 		template<typename CT, typename T, typename AT, typename = decltype(const_cast<to_be_t<CT>*>(std::declval<T*>()))> inline _ptr_base<to_be_t<CT>> const_ptr_cast(const _ptr_base<T, AT>& other)
 		{
-			return{ VM_CAST(other.addr()), vm::addr };
+			return{ vm::cast(other.addr(), HERE), vm::addr };
 		}
 	}
 
@@ -326,13 +326,13 @@ namespace vm
 		// perform static_cast (for example, vm::ptr<void> to vm::ptr<char>)
 		template<typename CT, typename T, typename AT, typename = decltype(static_cast<to_le_t<CT>*>(std::declval<T*>()))> inline _ptr_base<to_le_t<CT>> static_ptr_cast(const _ptr_base<T, AT>& other)
 		{
-			return{ VM_CAST(other.addr()), vm::addr };
+			return{ vm::cast(other.addr(), HERE), vm::addr };
 		}
 
 		// perform const_cast (for example, vm::cptr<char> to vm::ptr<char>)
 		template<typename CT, typename T, typename AT, typename = decltype(const_cast<to_le_t<CT>*>(std::declval<T*>()))> inline _ptr_base<to_le_t<CT>> const_ptr_cast(const _ptr_base<T, AT>& other)
 		{
-			return{ VM_CAST(other.addr()), vm::addr };
+			return{ vm::cast(other.addr(), HERE), vm::addr };
 		}
 	}
 
@@ -375,19 +375,19 @@ template<typename T, typename AT> inline std::enable_if_t<std::is_object<T>::val
 // addition operator for vm::_ptr_base (pointer + integer)
 template<typename T, typename AT> inline std::enable_if_t<std::is_object<T>::value, vm::_ptr_base<T>> operator +(const vm::_ptr_base<T, AT>& ptr, u32 count)
 {
-	return{ VM_CAST(ptr.addr()) + count * SIZE_32(T), vm::addr };
+	return{ vm::cast(ptr.addr(), HERE) + count * SIZE_32(T), vm::addr };
 }
 
 // addition operator for vm::_ptr_base (integer + pointer)
 template<typename T, typename AT> inline std::enable_if_t<std::is_object<T>::value, vm::_ptr_base<T>> operator +(u32 count, const vm::_ptr_base<T, AT>& ptr)
 {
-	return{ VM_CAST(ptr.addr()) + count * SIZE_32(T), vm::addr };
+	return{ vm::cast(ptr.addr(), HERE) + count * SIZE_32(T), vm::addr };
 }
 
 // subtraction operator for vm::_ptr_base (pointer - integer)
 template<typename T, typename AT> inline std::enable_if_t<std::is_object<T>::value, vm::_ptr_base<T>> operator -(const vm::_ptr_base<T, AT>& ptr, u32 count)
 {
-	return{ VM_CAST(ptr.addr()) - count * SIZE_32(T), vm::addr };
+	return{ vm::cast(ptr.addr(), HERE) - count * SIZE_32(T), vm::addr };
 }
 
 // pointer difference operator for vm::_ptr_base
@@ -397,7 +397,7 @@ template<typename T1, typename AT1, typename T2, typename AT2> inline std::enabl
 	std::is_same<std::remove_cv_t<T1>, std::remove_cv_t<T2>>::value,
 	s32> operator -(const vm::_ptr_base<T1, AT1>& left, const vm::_ptr_base<T2, AT2>& right)
 {
-	return static_cast<s32>(VM_CAST(left.addr()) - VM_CAST(right.addr())) / SIZE_32(T1);
+	return static_cast<s32>(vm::cast(left.addr(), HERE) - vm::cast(right.addr(), HERE)) / SIZE_32(T1);
 }
 
 // comparison operator for vm::_ptr_base (pointer1 == pointer2)
@@ -514,7 +514,8 @@ namespace fmt
 {
 	// external specialization for fmt::format function
 
-	template<typename T, typename AT> struct unveil<vm::_ptr_base<T, AT>, false>
+	template<typename T, typename AT>
+	struct unveil<vm::_ptr_base<T, AT>>
 	{
 		using result_type = typename unveil<AT>::result_type;
 

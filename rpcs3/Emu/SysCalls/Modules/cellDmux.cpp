@@ -112,8 +112,7 @@ bool ElementaryStream::is_full(u32 space)
 		u32 first = 0;
 		if (!entries.peek(first, 0, &dmux->is_closed) || !first)
 		{
-			assert(!"es::is_full() error: entries.Peek() failed");
-			return false;
+			throw std::runtime_error("entries.peek() failed" HERE);
 		}
 		else if (first >= put)
 		{
@@ -145,7 +144,7 @@ void ElementaryStream::push_au(u32 size, u64 dts, u64 pts, u64 userdata, bool ra
 	u32 addr;
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
-		assert(!is_full(size));
+		ASSERT(!is_full(size));
 
 		if (put + size + 128 > memAddr + memSize)
 		{
@@ -185,10 +184,8 @@ void ElementaryStream::push_au(u32 size, u64 dts, u64 pts, u64 userdata, bool ra
 
 		put_count++;
 	}
-	if (!entries.push(addr, &dmux->is_closed))
-	{
-		assert(!"es::push_au() error: entries.Push() failed");
-	}
+
+	ASSERT(entries.push(addr, &dmux->is_closed));
 }
 
 void ElementaryStream::push(DemuxerStream& stream, u32 size)

@@ -1,5 +1,8 @@
 #pragma once
+
 #include "Emu/FS/VFS.h"
+
+struct VFSManagerEntry {};
 
 class VFSEntrySettingsDialog : public wxDialog
 {

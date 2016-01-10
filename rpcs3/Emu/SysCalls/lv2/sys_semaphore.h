@@ -27,7 +27,7 @@ struct lv2_sema_t
 
 	std::atomic<s32> value;
 
-	sleep_queue_t sq;
+	sleep_queue<CPUThread> sq;
 
 	lv2_sema_t(u32 protocol, s32 max, u64 name, s32 value)
 		: protocol(protocol)

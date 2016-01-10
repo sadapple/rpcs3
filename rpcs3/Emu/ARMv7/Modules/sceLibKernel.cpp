@@ -419,7 +419,7 @@ s32 sceKernelOpenEventFlag(vm::cptr<char> pName)
 
 		if (evf->name == pName.get_ptr() && evf->ref.atomic_op(ipc_ref_try_inc))
 		{
-			return idm::import(evf);
+			return idm::import_existing(evf);
 		}
 	}
 
@@ -476,7 +476,7 @@ s32 sceKernelWaitEventFlag(ARMv7Thread& context, s32 evfId, u32 bitPattern, u32 
 	context.GPR[2] = waitMode;
 
 	// add waiter; attributes are ignored in current implementation
-	sleep_queue_entry_t waiter(context, evf->sq);
+	sleep_entry<CPUThread> waiter(evf->sq, context);
 
 	while (!context.unsignal())
 	{
@@ -554,7 +554,7 @@ s32 sceKernelSetEventFlag(s32 evfId, u32 bitPattern)
 
 	evf->pattern |= bitPattern;
 
-	auto pred = [&](sleep_queue_t::value_type& thread) -> bool
+	auto pred = [&](CPUThread* thread) -> bool
 	{
 		auto& context = static_cast<ARMv7Thread&>(*thread);
 

@@ -1,12 +1,11 @@
 #include "stdafx.h"
 #include "stdafx_gui.h"
-#include "Loader/ELF64.h"
-#include "Emu/FS/vfsDir.h"
-#include "Emu/FS/vfsFile.h"
-#include "LLEModulesManager.h"
-#include "Emu/System.h"
-#include "Emu/state.h"
+#include "Utilities/Registry.h"
 #include "Emu/FS/VFS.h"
+#include "Emu/System.h"
+#include "Loader/ELF64.h"
+
+#include "LLEModulesManager.h"
 
 LLEModulesManagerFrame::LLEModulesManagerFrame(wxWindow* parent)
 	: wxDialog(parent, wxID_ANY, "LLEModulesManagerFrame", wxDefaultPosition, wxSize(480, 640))
@@ -43,18 +42,16 @@ void LLEModulesManagerFrame::Refresh()
 	m_check_list->Clear();
 	m_funcs.clear();
 
-	std::string path = "/dev_flash/sys/external/";
-
-	Emu.GetVFS().Init(path);
+	const std::string& lle_dir = vfs::get("/dev_flash/sys/external/");
 
 	loader::handlers::elf64 sprx_loader;
 
-	for (const auto info : vfsDir(path))
+	for (const auto& info : fs::dir(lle_dir))
 	{
-		if (info->flags & DirEntry_TypeFile)
+		if (!info.is_directory)
 		{
-			vfsFile f(path + info->name);
-			if (sprx_loader.init(f) != loader::handler::ok)
+			fs::file f(lle_dir + info.name);
+			if (!f || sprx_loader.init(f) != loader::handler::ok)
 			{
 				continue;
 			}
@@ -87,11 +84,9 @@ void LLEModulesManagerFrame::Refresh()
 			m_check_list->Check(m_check_list->Append(name +
 				" v" + std::to_string((int)sprx_loader.m_sprx_module_info.version[0]) +
 				"." + std::to_string((int)sprx_loader.m_sprx_module_info.version[1])),
-				rpcs3::config.lle.get_entry_value<bool>(name, false));
+				cfg::to_bool("lle/" + name));
 		}
 	}
-
-	Emu.GetVFS().UnMountAll();
 }
 
 void LLEModulesManagerFrame::UpdateSelection(int index)
@@ -99,7 +94,7 @@ void LLEModulesManagerFrame::UpdateSelection(int index)
 	if (index < 0)
 		return;
 
-	rpcs3::config.lle.set_entry_value(m_funcs[index], m_check_list->IsChecked(index));
+	ASSERT(cfg::from_bool(m_funcs[index], m_check_list->IsChecked(index)));
 }
 
 void LLEModulesManagerFrame::OnSelectAll(wxCommandEvent& WXUNUSED(event), bool is_checked)

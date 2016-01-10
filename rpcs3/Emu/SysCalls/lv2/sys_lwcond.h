@@ -21,14 +21,14 @@ struct lv2_lwcond_t
 {
 	const u64 name;
 
-	sleep_queue_t sq;
+	sleep_queue<CPUThread> sq;
 
 	lv2_lwcond_t(u64 name)
 		: name(name)
 	{
 	}
 
-	void notify(lv2_lock_t& lv2_lock, sleep_queue_t::value_type& thread, const std::shared_ptr<lv2_lwmutex_t>& mutex, bool mode2);
+	void notify(lv2_lock_t, CPUThread* thread, const std::shared_ptr<lv2_lwmutex_t>& mutex, bool mode2);
 };
 
 // Aux

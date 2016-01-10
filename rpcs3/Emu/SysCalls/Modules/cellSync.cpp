@@ -6,7 +6,6 @@
 #include "Emu/SysCalls/lv2/sys_sync.h"
 #include "Emu/SysCalls/lv2/sys_event.h"
 #include "Emu/SysCalls/lv2/sys_process.h"
-#include "Emu/Event.h"
 #include "cellSync.h"
 
 extern Module<> cellSync;
@@ -983,7 +982,7 @@ s32 _cellSyncLFQueueCompletePushPointer(PPUThread& ppu, vm::ptr<CellSyncLFQueue>
 
 			if (var9 > 1 && (u32)var8 > 1)
 			{
-				assert(16 - var2 <= 1);
+				ASSERT(16 - var2 <= 1);
 			}
 
 			s32 var11 = (pack >> 10) & 0x1f;
@@ -1015,14 +1014,13 @@ s32 _cellSyncLFQueueCompletePushPointer(PPUThread& ppu, vm::ptr<CellSyncLFQueue>
 
 		if (queue->push2.compare_and_swap_test(old, push2))
 		{
-			assert(var2 + var4 < 16);
+			ASSERT(var2 + var4 < 16);
 			if (var6 != -1)
 			{
-				bool exch = queue->push3.compare_and_swap_test(old2, push3);
-				assert(exch);
-				if (exch)
+				ASSERT(queue->push3.compare_and_swap_test(old2, push3));
+				if (true)
 				{
-					assert(fpSendSignal);
+					ASSERT(fpSendSignal);
 					return fpSendSignal(ppu, (u32)queue->m_eaSignal.addr(), var6);
 				}
 			}
@@ -1094,7 +1092,7 @@ s32 _cellSyncLFQueuePushBody(PPUThread& ppu, vm::ptr<CellSyncLFQueue> queue, vm:
 	const s32 depth = queue->m_depth;
 	const s32 size = queue->m_size;
 	const s32 pos = *position;
-	const u32 addr = VM_CAST((u64)((queue->m_buffer.addr() & ~1ull) + size * (pos >= depth ? pos - depth : pos)));
+	const u32 addr = vm::cast((u64)((queue->m_buffer.addr() & ~1ull) + size * (pos >= depth ? pos - depth : pos)), HERE);
 	std::memcpy(vm::base(addr), buffer.get_ptr(), size);
 
 	if (queue->m_direction != CELL_SYNC_QUEUE_ANY2ANY)
@@ -1294,7 +1292,7 @@ s32 _cellSyncLFQueueCompletePopPointer(PPUThread& ppu, vm::ptr<CellSyncLFQueue> 
 
 			if (var9 > 1 && (u32)var8 > 1)
 			{
-				assert(16 - var2 <= 1);
+				ASSERT(16 - var2 <= 1);
 			}
 
 			s32 var11 = (pack >> 10) & 0x1f;
@@ -1324,11 +1322,10 @@ s32 _cellSyncLFQueueCompletePopPointer(PPUThread& ppu, vm::ptr<CellSyncLFQueue> 
 		{
 			if (var6 != -1)
 			{
-				bool exch = queue->pop3.compare_and_swap_test(old2, pop3);
-				assert(exch);
-				if (exch)
+				ASSERT(queue->pop3.compare_and_swap_test(old2, pop3));
+				if (true)
 				{
-					assert(fpSendSignal);
+					ASSERT(fpSendSignal);
 					return fpSendSignal(ppu, (u32)queue->m_eaSignal.addr(), var6);
 				}
 			}
@@ -1400,7 +1397,7 @@ s32 _cellSyncLFQueuePopBody(PPUThread& ppu, vm::ptr<CellSyncLFQueue> queue, vm::
 	const s32 depth = queue->m_depth;
 	const s32 size = queue->m_size;
 	const s32 pos = *position;
-	const u32 addr = VM_CAST((u64)((queue->m_buffer.addr() & ~1) + size * (pos >= depth ? pos - depth : pos)));
+	const u32 addr = vm::cast((u64)((queue->m_buffer.addr() & ~1) + size * (pos >= depth ? pos - depth : pos)), HERE);
 	std::memcpy(buffer.get_ptr(), vm::base(addr), size);
 
 	if (queue->m_direction != CELL_SYNC_QUEUE_ANY2ANY)

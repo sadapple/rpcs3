@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/SysCalls/Modules.h"
-#include "Emu/state.h"
 
 #include "sceNp.h"
 #include "sceNp2.h"
@@ -133,16 +132,7 @@ s32 cellSysutilAvc2IsCameraAttached(vm::ptr<u8> status)
 {
 	cellSysutilAvc2.todo("cellSysutilAvc2IsCameraAttached()");
 
-	if (rpcs3::config.io.camera.value() == io_camera_state::null)
-	{
-		*status = CELL_AVC2_CAMERA_STATUS_DETACHED;
-	}
-	else
-	{
-		// TODO: We need to check if the camera has been turned on, but this requires further implementation of cellGem/cellCamera.
-		*status = CELL_AVC2_CAMERA_STATUS_ATTACHED_OFF;
-	}
-
+	*status = CELL_AVC2_CAMERA_STATUS_DETACHED;
 	return CELL_OK;
 }
 

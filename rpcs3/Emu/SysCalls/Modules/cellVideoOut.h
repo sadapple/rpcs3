@@ -1,5 +1,7 @@
 #pragma once
 
+namespace vm { using namespace ps3; }
+
 // Video Out Error Codes
 enum
 {
@@ -14,13 +16,13 @@ enum
 	CELL_VIDEO_OUT_ERROR_VALUE_IS_NOT_SET         = 0x8002b228,
 };
 
-enum CellVideoOut
+enum CellVideoOut : s32
 {
 	CELL_VIDEO_OUT_PRIMARY   = 0,
 	CELL_VIDEO_OUT_SECONDARY = 1,
 };
 
-enum CellVideoOutResolutionId
+enum CellVideoOutResolutionId : s32
 {
 	CELL_VIDEO_OUT_RESOLUTION_UNDEFINED = 0,
 	CELL_VIDEO_OUT_RESOLUTION_1080      = 1,
@@ -39,29 +41,29 @@ enum CellVideoOutResolutionId
 	CELL_VIDEO_OUT_RESOLUTION_720_SIMULVIEW_FRAME_PACKING = 0x91,
 };
 
-enum CellVideoOutScanMode
+enum CellVideoOutScanMode : s32
 {
 	CELL_VIDEO_OUT_SCAN_MODE_INTERLACE,
 	CELL_VIDEO_OUT_SCAN_MODE_PROGRESSIVE,
 };
 
-enum CellVideoOutScanMode2
+enum CellVideoOutScanMode2 : s32
 {
 	CELL_VIDEO_OUT_SCAN_MODE2_AUTO,
 	CELL_VIDEO_OUT_SCAN_MODE2_INTERLACE,
 	CELL_VIDEO_OUT_SCAN_MODE2_PROGRESSIVE,
 };
 
-enum CellVideoOutRefreshRate
+enum CellVideoOutRefreshRate : s32
 {
 	CELL_VIDEO_OUT_REFRESH_RATE_AUTO    = 0x0000,
 	CELL_VIDEO_OUT_REFRESH_RATE_59_94HZ = 0x0001,
 	CELL_VIDEO_OUT_REFRESH_RATE_50HZ    = 0x0002,
 	CELL_VIDEO_OUT_REFRESH_RATE_60HZ    = 0x0004,
-	CELL_VIDEO_OUT_REFRESH_RATE_30HZ    = 0x0008
+	CELL_VIDEO_OUT_REFRESH_RATE_30HZ    = 0x0008,
 };
 
-enum CellVideoOutPortType
+enum CellVideoOutPortType : s32
 {
 	CELL_VIDEO_OUT_PORT_NONE            = 0x00,
 	CELL_VIDEO_OUT_PORT_HDMI            = 0x01,
@@ -71,44 +73,44 @@ enum CellVideoOutPortType
 	CELL_VIDEO_OUT_PORT_COMPONENT       = 0x83,
 	CELL_VIDEO_OUT_PORT_RGB             = 0x84,
 	CELL_VIDEO_OUT_PORT_AVMULTI_SCART   = 0x85,
-	CELL_VIDEO_OUT_PORT_DSUB            = 0x86
+	CELL_VIDEO_OUT_PORT_DSUB            = 0x86,
 };
 
-enum CellVideoOutDisplayAspect
+enum CellVideoOutDisplayAspect : s32
 {
 	CELL_VIDEO_OUT_ASPECT_AUTO,
 	CELL_VIDEO_OUT_ASPECT_4_3,
 	CELL_VIDEO_OUT_ASPECT_16_9,
 };
 
-enum CellVideoOutBufferColorFormat
+enum CellVideoOutBufferColorFormat : s32
 {
 	CELL_VIDEO_OUT_BUFFER_COLOR_FORMAT_X8R8G8B8,
 	CELL_VIDEO_OUT_BUFFER_COLOR_FORMAT_X8B8G8R8,
 	CELL_VIDEO_OUT_BUFFER_COLOR_FORMAT_R16G16B16X16_FLOAT,
 };
 
-enum CellVideoOutOutputState
+enum CellVideoOutOutputState : s32
 {
 	CELL_VIDEO_OUT_OUTPUT_STATE_ENABLED,
 	CELL_VIDEO_OUT_OUTPUT_STATE_DISABLED,
 	CELL_VIDEO_OUT_OUTPUT_STATE_PREPARING,
 };
 
-enum CellVideoOutDeviceState
+enum CellVideoOutDeviceState : s32
 {
 	CELL_VIDEO_OUT_DEVICE_STATE_UNAVAILABLE,
 	CELL_VIDEO_OUT_DEVICE_STATE_AVAILABLE,
 };
 
-enum CellVideoOutColorSpace
+enum CellVideoOutColorSpace : s32
 {
 	CELL_VIDEO_OUT_COLOR_SPACE_RGB   = 0x01,
 	CELL_VIDEO_OUT_COLOR_SPACE_YUV   = 0x02,
 	CELL_VIDEO_OUT_COLOR_SPACE_XVYCC = 0x04,
 };
 
-enum CellVideoOutDebugMonitorType
+enum CellVideoOutDebugMonitorType : s32
 {
 	CELL_VIDEO_OUT_DEBUG_MONITOR_TYPE_UNDEFINED     = 0,
 	CELL_VIDEO_OUT_DEBUG_MONITOR_TYPE_480I_59_94HZ  = 1,
@@ -120,30 +122,30 @@ enum CellVideoOutDebugMonitorType
 	CELL_VIDEO_OUT_DEBUG_MONITOR_TYPE_1080P_59_94HZ = 9,
 	CELL_VIDEO_OUT_DEBUG_MONITOR_TYPE_WXGA_60HZ     = 11,
 	CELL_VIDEO_OUT_DEBUG_MONITOR_TYPE_SXGA_60HZ     = 12,
-	CELL_VIDEO_OUT_DEBUG_MONITOR_TYPE_WUXGA_60HZ    = 13
+	CELL_VIDEO_OUT_DEBUG_MONITOR_TYPE_WUXGA_60HZ    = 13,
 };
 
 struct CellVideoOutColorInfo
 {
-	u16 redX;
-	u16 redY;
-	u16 greenX;
-	u16 greenY;
-	u16 blueX;
-	u16 blueY;
-	u16 whiteX;
-	u16 whiteY;
-	u32 gamma;
+	be_t<u16> redX;
+	be_t<u16> redY;
+	be_t<u16> greenX;
+	be_t<u16> greenY;
+	be_t<u16> blueX;
+	be_t<u16> blueY;
+	be_t<u16> whiteX;
+	be_t<u16> whiteY;
+	be_t<u32> gamma;
 };
 
 struct CellVideoOutKSVList
 {
 	u8 ksv[32*5];
 	u8 reserved[4];
-	u32 count;
+	be_t<u32> count;
 };
 
-enum CellVideoOutDisplayConversion
+enum CellVideoOutDisplayConversion : s32
 {
 	CELL_VIDEO_OUT_DISPLAY_CONVERSION_NONE          = 0x00,
 	CELL_VIDEO_OUT_DISPLAY_CONVERSION_TO_WXGA       = 0x01,
@@ -174,7 +176,7 @@ struct CellVideoOutDeviceInfo
 {
 	u8 portType;
 	u8 colorSpace;
-	u16 latency;
+	be_t<u16> latency;
 	u8 availableModeCount;
 	u8 state;
 	u8 rgbOutputRange;
@@ -206,7 +208,7 @@ struct CellVideoOutOption
 	be_t<u32> reserved;
 };
 
-enum CellVideoOutEvent
+enum CellVideoOutEvent : s32
 {
 	CELL_VIDEO_OUT_EVENT_DEVICE_CHANGED,
 	CELL_VIDEO_OUT_EVENT_OUTPUT_DISABLED,
@@ -214,69 +216,17 @@ enum CellVideoOutEvent
 	CELL_VIDEO_OUT_EVENT_OUTPUT_ENABLED,
 };
 
-enum CellVideoOutCopyControl
+enum CellVideoOutCopyControl : s32
 {
 	CELL_VIDEO_OUT_COPY_CONTROL_COPY_FREE,
 	CELL_VIDEO_OUT_COPY_CONTROL_COPY_ONCE,
 	CELL_VIDEO_OUT_COPY_CONTROL_COPY_NEVER,
 };
 
-enum CellVideoOutRGBOutputRange
+enum CellVideoOutRGBOutputRange : s32
 {
 	CELL_VIDEO_OUT_RGB_OUTPUT_RANGE_LIMITED,
 	CELL_VIDEO_OUT_RGB_OUTPUT_RANGE_FULL,
 };
 
-static const CellVideoOutResolution ResolutionTable[] =
-{
-	{ 0xffff, 0xffff }, //0 - 0
-	{ 1920, 1080 },     //1 - 1
-	{ 1280, 720 },      //2 - 2
-	{ 720, 480 },       //4 - 3
-	{ 720, 576 },       //5 - 4
-	{ 1600, 1080 },     //10 - 5
-	{ 1440, 1080 },     //11 - 6
-	{ 1280, 1080 },     //12 - 7
-	{ 960, 1080 },      //13 - 8
-};
-
-inline static u32 ResolutionIdToNum(u32 id)
-{
-	static const u32 res[] = 
-	{
-		0, //0
-		1, //1
-		2, //2
-		0, //3
-		3, //4
-		4, //5
-		0, //6
-		0, //7
-		0, //8
-		0, //9
-		5, //10
-		6, //11
-		7, //12
-		8, //13
-	};
-
-	return id <= 13 ? res[id] : 0;
-}
-
-inline static u32 ResolutionNumToId(u32 num)
-{
-	static const u32 res[] = 
-	{
-		0,  //0
-		1,  //1
-		2,  //2
-		4,  //3
-		5,  //4
-		10, //5
-		11, //6
-		12, //7
-		13, //8
-	};
-
-	return num <= 8 ? res[num] : 0;
-}
+using CellVideoOutCallback = s32(u32 slot, u32 videoOut, u32 deviceIndex, u32 event, vm::ptr<CellVideoOutDeviceInfo> info, vm::ptr<void> userData);

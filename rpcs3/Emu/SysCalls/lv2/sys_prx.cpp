@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "Emu/Memory/Memory.h"
+#include "Emu/FS/VFS.h"
 #include "Emu/System.h"
 #include "Emu/IdManager.h"
 #include "Emu/SysCalls/SysCalls.h"
@@ -8,8 +9,6 @@
 #include "Emu/SysCalls/ModuleManager.h"
 #include "Emu/Cell/PPUInstrTable.h"
 
-#include "Emu/FS/VFS.h"
-#include "Emu/FS/vfsFile.h"
 #include "Crypto/unself.h"
 #include "Loader/ELF64.h"
 #include "sys_prx.h"
@@ -27,8 +26,8 @@ s32 prx_load_module(std::string path, u64 flags, vm::ptr<sys_prx_load_module_opt
 
 	loader::handlers::elf64 loader;
 
-	vfsFile f(path);
-	if (!f.IsOpened())
+	const fs::file f(vfs::get(path));
+	if (!f)
 	{
 		return CELL_PRX_ERROR_UNKNOWN_MODULE;
 	}

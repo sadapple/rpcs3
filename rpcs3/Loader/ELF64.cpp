@@ -1,11 +1,9 @@
 #include "stdafx.h"
-#include "Emu/FS/vfsStream.h"
-#include "Emu/FS/vfsFile.h"
-#include "Emu/FS/vfsDir.h"
+#include "Utilities/Registry.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/IdManager.h"
+#include "Emu/FS/VFS.h"
 #include "Emu/System.h"
-#include "Emu/state.h"
 #include "Emu/SysCalls/SysCalls.h"
 #include "Emu/SysCalls/Modules.h"
 #include "Emu/SysCalls/ModuleManager.h"
@@ -13,13 +11,16 @@
 #include "Emu/Cell/PPUInstrTable.h"
 #include "ELF64.h"
 
+const extern cfg::bool_entry g_cfg_hook_ppu_funcs("core/Hook static functions");
+const extern cfg::bool_entry g_cfg_load_liblv2("core/Load liblv2.sprx");
+
 using namespace PPU_instr;
 
 namespace loader
 {
 	namespace handlers
 	{
-		handler::error_code elf64::init(vfsStream& stream)
+		handler::error_code elf64::init(const fs::file& stream)
 		{
 			m_ehdr = {};
 			m_sprx_module_info = {};
@@ -39,7 +40,7 @@ namespace loader
 				return res;
 			}
 
-			m_stream->Read(&m_ehdr, sizeof(ehdr));
+			m_stream->read(&m_ehdr, sizeof(ehdr));
 
 			if (!m_ehdr.check())
 			{
@@ -65,23 +66,23 @@ namespace loader
 			if (m_ehdr.e_phnum)
 			{
 				m_phdrs.resize(m_ehdr.e_phnum);
-				m_stream->Seek(handler::get_stream_offset() + m_ehdr.e_phoff);
-				if (m_stream->Read(m_phdrs.data(), m_ehdr.e_phnum * sizeof(phdr)) != m_ehdr.e_phnum * sizeof(phdr))
+				m_stream->seek(handler::get_stream_offset() + m_ehdr.e_phoff);
+				if (m_stream->read(m_phdrs.data(), m_ehdr.e_phnum * sizeof(phdr)) != m_ehdr.e_phnum * sizeof(phdr))
 					return broken_file;
 			}
 
 			if (m_ehdr.e_shnum)
 			{
 				m_shdrs.resize(m_ehdr.e_shnum);
-				m_stream->Seek(handler::get_stream_offset() + m_ehdr.e_shoff);
-				if (m_stream->Read(m_shdrs.data(), m_ehdr.e_shnum * sizeof(shdr)) != m_ehdr.e_shnum * sizeof(shdr))
+				m_stream->seek(handler::get_stream_offset() + m_ehdr.e_shoff);
+				if (m_stream->read(m_shdrs.data(), m_ehdr.e_shnum * sizeof(shdr)) != m_ehdr.e_shnum * sizeof(shdr))
 					return broken_file;
 			}
 
 			if (is_sprx())
 			{
-				m_stream->Seek(handler::get_stream_offset() + m_phdrs[0].p_paddr.addr());
-				m_stream->Read(&m_sprx_module_info, sizeof(sprx_module_info));
+				m_stream->seek(handler::get_stream_offset() + m_phdrs[0].p_paddr.addr());
+				m_stream->read(&m_sprx_module_info, sizeof(sprx_module_info));
 
 				//m_stream->Seek(handler::get_stream_offset() + m_phdrs[1].p_vaddr.addr());
 				//m_stream->Read(&m_sprx_function_info, sizeof(sprx_function_info));
@@ -118,15 +119,15 @@ namespace loader
 
 						if (phdr.p_filesz)
 						{
-							m_stream->Seek(handler::get_stream_offset() + phdr.p_offset);
-							m_stream->Read(segment.begin.get_ptr(), phdr.p_filesz);
+							m_stream->seek(handler::get_stream_offset() + phdr.p_offset);
+							m_stream->read(segment.begin.get_ptr(), phdr.p_filesz);
 						}
 
 						if (phdr.p_paddr)
 						{
 							sys_prx_module_info_t module_info;
-							m_stream->Seek(handler::get_stream_offset() + phdr.p_paddr.addr());
-							m_stream->Read(&module_info, sizeof(module_info));
+							m_stream->seek(handler::get_stream_offset() + phdr.p_paddr.addr());
+							m_stream->read(&module_info, sizeof(module_info));
 
 							info.name = std::string(module_info.name, 28);
 							info.rtoc = module_info.toc + segment.begin.addr();
@@ -138,15 +139,15 @@ namespace loader
 								e < module_info.exports_end.addr();
 								e += lib.size ? lib.size : sizeof(sys_prx_library_info_t))
 							{
-								m_stream->Seek(handler::get_stream_offset() + phdr.p_offset + e);
-								m_stream->Read(&lib, sizeof(lib));
+								m_stream->seek(handler::get_stream_offset() + phdr.p_offset + e);
+								m_stream->read(&lib, sizeof(lib));
 
 								std::string modulename;
 								if (lib.name_addr)
 								{
 									char name[27];
-									m_stream->Seek(handler::get_stream_offset() + phdr.p_offset + lib.name_addr);
-									m_stream->Read(name, sizeof(name));
+									m_stream->seek(handler::get_stream_offset() + phdr.p_offset + lib.name_addr);
+									m_stream->read(name, sizeof(name));
 									modulename = name;
 									LOG_WARNING(LOADER, "**** Exported: %s", name);
 								}
@@ -158,11 +159,11 @@ namespace loader
 								for (u16 i = 0, end = lib.num_func; i < end; ++i)
 								{
 									be_t<u32> fnid, fstub;
-									m_stream->Seek(handler::get_stream_offset() + phdr.p_offset + lib.fnid_addr + i * sizeof(fnid));
-									m_stream->Read(&fnid, sizeof(fnid));
+									m_stream->seek(handler::get_stream_offset() + phdr.p_offset + lib.fnid_addr + i * sizeof(fnid));
+									m_stream->read(&fnid, sizeof(fnid));
 
-									m_stream->Seek(handler::get_stream_offset() + phdr.p_offset + lib.fstub_addr + i * sizeof(fstub));
-									m_stream->Read(&fstub, sizeof(fstub));
+									m_stream->seek(handler::get_stream_offset() + phdr.p_offset + lib.fstub_addr + i * sizeof(fstub));
+									m_stream->read(&fstub, sizeof(fstub));
 
 									module.exports[fnid] = fstub;
 
@@ -175,15 +176,15 @@ namespace loader
 								i < module_info.imports_end;
 								i += lib.size ? lib.size : sizeof(sys_prx_library_info_t))
 							{
-								m_stream->Seek(handler::get_stream_offset() + phdr.p_offset + i);
-								m_stream->Read(&lib, sizeof(lib));
+								m_stream->seek(handler::get_stream_offset() + phdr.p_offset + i);
+								m_stream->read(&lib, sizeof(lib));
 
 								std::string modulename;
 								if (lib.name_addr)
 								{
 									char name[27];
-									m_stream->Seek(handler::get_stream_offset() + phdr.p_offset + lib.name_addr);
-									m_stream->Read(name, sizeof(name));
+									m_stream->seek(handler::get_stream_offset() + phdr.p_offset + lib.name_addr);
+									m_stream->read(name, sizeof(name));
 									modulename = name;
 									LOG_WARNING(LOADER, "**** Imported: %s", name);
 								}
@@ -195,11 +196,11 @@ namespace loader
 								for (u16 i = 0, end = lib.num_func; i < end; ++i)
 								{
 									be_t<u32> fnid, fstub;
-									m_stream->Seek(handler::get_stream_offset() + phdr.p_offset + lib.fnid_addr + i * sizeof(fnid));
-									m_stream->Read(&fnid, sizeof(fnid));
+									m_stream->seek(handler::get_stream_offset() + phdr.p_offset + lib.fnid_addr + i * sizeof(fnid));
+									m_stream->read(&fnid, sizeof(fnid));
 
-									m_stream->Seek(handler::get_stream_offset() + phdr.p_offset + lib.fstub_addr + i * sizeof(fstub));
-									m_stream->Read(&fstub, sizeof(fstub));
+									m_stream->seek(handler::get_stream_offset() + phdr.p_offset + lib.fstub_addr + i * sizeof(fstub));
+									m_stream->read(&fstub, sizeof(fstub));
 
 									module.imports[fnid] = fstub;
 
@@ -216,12 +217,12 @@ namespace loader
 
 				case 0x700000a4: //relocation
 				{
-					m_stream->Seek(handler::get_stream_offset() + phdr.p_offset);
+					m_stream->seek(handler::get_stream_offset() + phdr.p_offset);
 
 					for (uint i = 0; i < phdr.p_filesz; i += sizeof(sys_prx_relocation_info_t))
 					{
 						sys_prx_relocation_info_t rel;
-						m_stream->Read(&rel, sizeof(rel));
+						m_stream->read(&rel, sizeof(rel));
 
 						u32 ADDR = info.segments[rel.index_addr].begin.addr() + rel.offset;
 
@@ -273,7 +274,7 @@ namespace loader
 						}
 					}
 
-					assert(e.second != stub);
+					ASSERT(e.second != stub);
 					e.second = stub;
 				}
 
@@ -290,7 +291,7 @@ namespace loader
 						}
 					}
 
-					assert(i.second != stub);
+					ASSERT(i.second != stub);
 					i.second = stub;
 				}
 			}
@@ -320,43 +321,35 @@ namespace loader
 			std::vector<u32> stop_funcs;
 			std::vector<u32> exit_funcs;
 
-			//load modules
-			vfsDir lle_dir("/dev_flash/sys/external");
+			// load modules
+			const std::string& lle_dir = vfs::get("/dev_flash/sys/external");
 			
-			for (const auto module : lle_dir)
+			for (const auto& module : fs::dir(lle_dir))
 			{
-				if (module->flags & DirEntry_TypeDir)
+				if (module.is_directory)
 				{
 					continue;
 				}
 
-				if (rpcs3::state.config.core.load_liblv2.value())
+				if (g_cfg_load_liblv2 && module.name != "liblv2.sprx")
 				{
-					if (module->name != "liblv2.sprx")
-					{
-						continue;
-					}
+					continue;
 				}
 
 				elf64 sprx_handler;
 
-				vfsFile fsprx(lle_dir.GetPath() + "/" + module->name);
-
-				if (fsprx.IsOpened())
+				if (fs::file fsprx{ lle_dir + '/' + module.name })
 				{
 					sprx_handler.init(fsprx);
 
 					if (sprx_handler.is_sprx())
 					{
-						if (!rpcs3::state.config.core.load_liblv2.value())
+						if (!g_cfg_load_liblv2 && !cfg::to_bool("lle/" + sprx_handler.sprx_get_module_name()))
 						{
-							if (rpcs3::config.lle.get_entry_value<bool>(sprx_handler.sprx_get_module_name(), false) == false)
-							{
-								continue;
-							}
+							continue;
 						}
 
-						LOG_WARNING(LOADER, "Loading LLE library '%s'", sprx_handler.sprx_get_module_name().c_str());
+						LOG_WARNING(LOADER, "Loading LLE library '%s'", sprx_handler.sprx_get_module_name());
 
 						sprx_info info;
 						sprx_handler.load_sprx(info);
@@ -373,7 +366,7 @@ namespace loader
 
 									if (!code)
 									{
-										LOG_ERROR(LOADER, "bad OPD of special function 0x%08x in '%s' library (0x%x)", e.first, info.name.c_str(), code);
+										LOG_ERROR(LOADER, "bad OPD of special function 0x%08x in '%s' library (0x%x)", e.first, info.name, code);
 									}
 
 									switch (e.first)
@@ -610,10 +603,10 @@ namespace loader
 					{
 						if (phdr.p_filesz)
 						{
-							m_stream->Seek(handler::get_stream_offset() + phdr.p_offset);
-							m_stream->Read(phdr.p_vaddr.get_ptr(), phdr.p_filesz);
+							m_stream->seek(handler::get_stream_offset() + phdr.p_offset);
+							m_stream->read(phdr.p_vaddr.get_ptr(), phdr.p_filesz);
 
-							if (rpcs3::state.config.core.hook_st_func.value())
+							if (g_cfg_hook_ppu_funcs)
 							{
 								hook_ppu_funcs(vm::static_ptr_cast<u32>(phdr.p_vaddr), phdr.p_filesz / 4);
 							}

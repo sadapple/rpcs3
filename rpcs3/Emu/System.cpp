@@ -1,37 +1,37 @@
 #include "stdafx.h"
-
-#include "config.h"
-#include "events.h"
-#include "state.h"
-
+#include "Utilities/Registry.h"
+#include "Utilities/AutoPause.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/System.h"
+#include "Emu/events.h"
 
 #include "Emu/GameInfo.h"
 #include "Emu/SysCalls/ModuleManager.h"
 #include "Emu/Cell/PPUThread.h"
 #include "Emu/Cell/SPUThread.h"
 #include "Emu/Cell/PPUInstrTable.h"
-#include "Emu/FS/vfsFile.h"
-#include "Emu/FS/vfsLocalFile.h"
-#include "Emu/FS/vfsDeviceLocalFile.h"
 
 #include "Emu/CPU/CPUThreadManager.h"
 #include "Emu/SysCalls/Callback.h"
 #include "Emu/IdManager.h"
-#include "Emu/Io/Pad.h"
-#include "Emu/Io/Keyboard.h"
-#include "Emu/Io/Mouse.h"
-#include "Emu/RSX/GSManager.h"
-#include "Emu/Audio/AudioManager.h"
+#include "Emu/RSX/GSRender.h"
 #include "Emu/FS/VFS.h"
-#include "Emu/Event.h"
 
 #include "Loader/PSF.h"
 #include "Loader/ELF64.h"
 #include "Loader/ELF32.h"
 
 #include "../Crypto/unself.h"
+
+const extern cfg::bool_entry g_cfg_autostart("misc/Always start after boot");
+const extern cfg::bool_entry g_cfg_autoexit("misc/Exit RPCS3 when process finishes");
+
+extern cfg::string_entry g_cfg_vfs_dev_hdd0;
+extern cfg::string_entry g_cfg_vfs_dev_hdd1;
+extern cfg::string_entry g_cfg_vfs_dev_flash;
+extern cfg::string_entry g_cfg_vfs_dev_usb000;
+extern cfg::string_entry g_cfg_vfs_dev_bdvd;
+extern cfg::string_entry g_cfg_vfs_app_home;
 
 using namespace PPU_instr;
 
@@ -69,15 +69,8 @@ Emulator::Emulator()
 	, m_rsx_callback(0)
 	, m_cpu_thr_stop(0)
 	, m_thread_manager(new CPUThreadManager())
-	, m_pad_manager(new PadManager())
-	, m_keyboard_manager(new KeyboardManager())
-	, m_mouse_manager(new MouseManager())
-	, m_gs_manager(new GSManager())
-	, m_audio_manager(new AudioManager())
 	, m_callback_manager(new CallbackManager())
-	, m_event_manager(new EventManager())
 	, m_module_manager(new ModuleManager())
-	, m_vfs(new VFS())
 {
 	m_loader.register_handler(new loader::handlers::elf32);
 	m_loader.register_handler(new loader::handlers::elf64);
@@ -85,7 +78,7 @@ Emulator::Emulator()
 
 void Emulator::Init()
 {
-	rpcs3::config.load();
+	//rpcs3::config.load();
 	rpcs3::oninit();
 }
 
@@ -95,29 +88,19 @@ void Emulator::SetPath(const std::string& path, const std::string& elf_path)
 	m_elf_path = elf_path;
 }
 
-void Emulator::SetTitleID(const std::string& id)
-{
-	m_title_id = id;
-}
-
-void Emulator::SetTitle(const std::string& title)
-{
-	m_title = title;
-}
-
 void Emulator::CreateConfig(const std::string& name)
 {
-	const std::string& path = fs::get_config_dir() + "data/" + name;
-	const std::string& ini_file = path + "/settings.ini";
+	//const std::string& path = fs::get_config_dir() + "data/" + name;
+	//const std::string& ini_file = path + "/settings.ini";
 
-	if (!fs::is_dir("data"))
-		fs::create_dir("data");
+	//if (!fs::is_dir("data"))
+	//	fs::create_dir("data");
 
-	if (!fs::is_dir(path))
-		fs::create_dir(path);
+	//if (!fs::is_dir(path))
+	//	fs::create_dir(path);
 
-	if (!fs::is_file(ini_file))
-		rpcs3::config_t{ ini_file }.save();
+	//if (!fs::is_file(ini_file))
+	//	rpcs3::config_t{ ini_file }.save();
 }
 
 bool Emulator::BootGame(const std::string& path, bool direct)
@@ -195,91 +178,87 @@ void Emulator::Load()
 	}
 
 	ResetInfo();
-	GetVFS().Init(elf_dir);
 
 	LOG_NOTICE(LOADER, "Loading '%s'...", m_path.c_str());
 
-	// /dev_bdvd/ mounting
-	vfsFile f("/app_home/../dev_bdvd.path");
-	if (f.IsOpened())
-	{
-		// load specified /dev_bdvd/ directory and mount it
-		std::string bdvd;
-		bdvd.resize(f.GetSize());
-		f.Read(&bdvd[0], bdvd.size());
-
-		Emu.GetVFS().Mount("/dev_bdvd/", bdvd, new vfsDeviceLocalFile());
-	}
-	else if (fs::is_file(elf_dir + "/../../PS3_DISC.SFB")) // guess loading disc game
-	{
-		const auto dir_list = fmt::split(elf_dir, { "/", "\\" });
-
-		// check latest two directories
-		if (dir_list.size() >= 2 && dir_list.back() == "USRDIR" && *(dir_list.end() - 2) == "PS3_GAME")
-		{
-			// mount detected /dev_bdvd/ directory
-			Emu.GetVFS().Mount("/dev_bdvd/", elf_dir.substr(0, elf_dir.length() - 16), new vfsDeviceLocalFile());
-		}
-	}
-
-	LOG_NOTICE(LOADER, "");
-	LOG_NOTICE(LOADER, "Mount info:");
-	for (uint i = 0; i < GetVFS().m_devices.size(); ++i)
-	{
-		LOG_NOTICE(LOADER, "%s -> %s", GetVFS().m_devices[i]->GetPs3Path().c_str(), GetVFS().m_devices[i]->GetLocalPath().c_str());
-	}
-
-	LOG_NOTICE(LOADER, "");
-	f.Open("/app_home/../PARAM.SFO");
-	const auto& psf = psf::load(f.VRead<char>());
-	std::string title = psf::get_string(psf, "TITLE");
-	std::string title_id = psf::get_string(psf, "TITLE_ID");
-	LOG_NOTICE(LOADER, "Title: %s", title.c_str());
-	LOG_NOTICE(LOADER, "Serial: %s", title_id.c_str());
-
-	title.length() ? SetTitle(title) : SetTitle(m_path);
-	SetTitleID(title_id);
-
-	rpcs3::state.config = rpcs3::config;
-
-	// load custom config
-	if (!rpcs3::config.misc.use_default_ini.value())
-	{
-		if (title_id.size())
-		{
-			title_id = title_id.substr(0, 4) + "-" + title_id.substr(4, 5);
-			CreateConfig(title_id);
-			rpcs3::config_t custom_config { fs::get_config_dir() + "data/" + title_id + "/settings.ini" };
-			custom_config.load();
-			rpcs3::state.config = custom_config;
-		}
-	}
-
-	LOG_NOTICE(LOADER, "Used configuration: '%s'", rpcs3::state.config.path().c_str());
-	LOG_NOTICE(LOADER, "");
-	LOG_NOTICE(LOADER, rpcs3::state.config.to_string().c_str());
-
 	if (m_elf_path.empty())
 	{
-		GetVFS().GetDeviceLocal(m_path, m_elf_path);
+		m_elf_path = "/host_root/" + m_path;
 
 		LOG_NOTICE(LOADER, "Elf path: %s", m_elf_path);
 		LOG_NOTICE(LOADER, "");
 	}
 
-	f.Open(m_elf_path);
-
-	if (!f.IsOpened())
+	// "Mount" /dev_bdvd/ (hack)
+	if (fs::is_file(elf_dir + "/../../PS3_DISC.SFB"))
 	{
-		LOG_ERROR(LOADER, "Opening '%s' failed", m_path.c_str());
+		const auto dir_list = fmt::split(elf_dir, { "/", "\\" });
+
+		// Check latest two directories
+		if (dir_list.size() >= 2 && dir_list.back() == "USRDIR" && *(dir_list.end() - 2) == "PS3_GAME")
+		{
+			g_cfg_vfs_dev_bdvd = elf_dir.substr(0, elf_dir.length() - 15);
+		}
+		else
+		{
+			g_cfg_vfs_dev_bdvd = elf_dir + "/../../";
+		}
+	}
+	else
+	{
+		g_cfg_vfs_dev_bdvd = {};
+	}
+
+	// "Mount" /app_home/ (hack)
+	g_cfg_vfs_app_home = elf_dir + '/';
+
+	// Load PARAM.SFO
+	m_psf = psf::load(fs::file(elf_dir + "/../PARAM.SFO"));
+	m_title = psf::get_string(m_psf, "TITLE", m_path);
+	m_title_id = psf::get_string(m_psf, "TITLE_ID");
+	LOG_NOTICE(LOADER, "Title: %s", GetTitle());
+	LOG_NOTICE(LOADER, "Serial: %s", GetTitleID());
+	LOG_NOTICE(LOADER, "");
+
+	//rpcs3::state.config = rpcs3::config;
+
+	// load custom config
+	//if (!rpcs3::config.misc.use_default_ini.value())
+	//{
+	//	if (title_id.size())
+	//	{
+	//		title_id = title_id.substr(0, 4) + "-" + title_id.substr(4, 5);
+	//		CreateConfig(title_id);
+	//		rpcs3::config_t custom_config { fs::get_config_dir() + "data/" + title_id + "/settings.ini" };
+	//		custom_config.load();
+	//		rpcs3::state.config = custom_config;
+	//	}
+	//}
+
+	//LOG_NOTICE(LOADER, "Used configuration: '%s'", rpcs3::state.config.path().c_str());
+	//LOG_NOTICE(LOADER, "");
+	//LOG_NOTICE(LOADER, rpcs3::state.config.to_string().c_str());
+
+	LOG_NOTICE(LOADER, "Mount info:");
+	LOG_NOTICE(LOADER, "/dev_hdd0/ -> %s", g_cfg_vfs_dev_hdd0.get());
+	LOG_NOTICE(LOADER, "/dev_hdd1/ -> %s", g_cfg_vfs_dev_hdd1.get());
+	LOG_NOTICE(LOADER, "/dev_flash/ -> %s", g_cfg_vfs_dev_flash.get());
+	LOG_NOTICE(LOADER, "/dev_usb/ -> /dev_usb000/ -> %s", g_cfg_vfs_dev_usb000.get());
+	LOG_NOTICE(LOADER, "/dev_bdvd/ -> %s", g_cfg_vfs_dev_bdvd.get());
+	LOG_NOTICE(LOADER, "/app_home/ -> %s", g_cfg_vfs_app_home.get());
+	LOG_NOTICE(LOADER, "");
+
+	fs::file elf(m_path);
+	if (!elf)
+	{
+		LOG_ERROR(LOADER, "Opening '%s' failed", m_path);
 		m_status = Stopped;
 		return;
 	}
 
-	if (!m_loader.load(f))
+	if (!m_loader.load(elf))
 	{
-		LOG_ERROR(LOADER, "Loading '%s' failed", m_path.c_str());
-		LOG_NOTICE(LOADER, "");
+		LOG_ERROR(LOADER, "Loading '%s' failed", m_path);
 		m_status = Stopped;
 		vm::close();
 		return;
@@ -287,12 +266,16 @@ void Emulator::Load()
 	
 	LoadPoints(fs::get_config_dir() + BreakPointsDBName);
 
-	GetGSManager().Init();
+	fxm::import<GSRender>(PURE_EXPR(Emu.GetCallbacks().get_gs_render())); // Must be created in appropriate sys_rsx syscall
 	GetCallbackManager().Init();
-	GetAudioManager().Init();
-	GetEventManager().Init();
+	debug::autopause::reload();
 
 	SendDbgCommand(DID_READY_EMU);
+
+	if (g_cfg_autostart)
+	{
+		Run();
+	}
 }
 
 void Emulator::Run()
@@ -441,21 +424,16 @@ void Emulator::Stop()
 	m_rsx_callback = 0;
 	m_cpu_thr_stop = 0;
 
+	// Temporary hack
+	g_cfg_vfs_app_home = "";
+	g_cfg_vfs_dev_bdvd = "";
+
 	// TODO: check finalization order
 
 	SavePoints(fs::get_config_dir() + BreakPointsDBName);
 	m_break_points.clear();
 	m_marked_points.clear();
 
-	GetVFS().UnMountAll();
-
-	GetGSManager().Close();
-	GetAudioManager().Close();
-	GetEventManager().Clear();
-	GetCPU().Close();
-	GetPadManager().Close();
-	GetKeyboardManager().Close();
-	GetMouseManager().Close();
 	GetCallbackManager().Clear();
 	GetModuleManager().Close();
 
@@ -463,6 +441,11 @@ void Emulator::Stop()
 	vm::close();
 
 	SendDbgCommand(DID_STOPPED_EMU);
+
+	if (g_cfg_autoexit)
+	{
+		GetCallbacks().exit();
+	}
 }
 
 void Emulator::SavePoints(const std::string& path)

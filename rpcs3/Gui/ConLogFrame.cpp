@@ -1,8 +1,10 @@
 ﻿#include "stdafx.h"
 #include "stdafx_gui.h"
 
-#include "Emu/state.h"
+#include "Utilities/Registry.h"
 #include "Gui/ConLogFrame.h"
+
+const extern cfg::enum_entry<_log::level> g_cfg_gui_log_level("misc/log/Log Level", _log::level::success);
 
 enum
 {
@@ -130,7 +132,7 @@ void LogFrame::OnTimer(wxTimerEvent& event)
 	const auto stamp0 = std::chrono::high_resolution_clock::now();
 
 	// Check TTY logs
-	while (const u64 size = std::min<u64>(sizeof(buf), _log::g_tty_file.size() - m_tty_file.seek(0, fs::seek_cur)))
+	while (const u64 size = std::min<u64>(sizeof(buf), _log::g_tty_file.size() - m_tty_file.pos()))
 	{
 		const wxString& text = get_utf8(m_tty_file, size);
 
@@ -143,14 +145,14 @@ void LogFrame::OnTimer(wxTimerEvent& event)
 	const auto stamp1 = std::chrono::high_resolution_clock::now();
 
 	// Check main logs
-	while (const u64 size = std::min<u64>(sizeof(buf), _log::g_log_file.size() - m_log_file.seek(0, fs::seek_cur)))
+	while (const u64 size = std::min<u64>(sizeof(buf), _log::g_log_file.size() - m_log_file.pos()))
 	{
 		const wxString& text = get_utf8(m_log_file, size);
 
 		// Append text if necessary
 		auto flush_logs = [&](u64 start, u64 pos)
 		{
-			if (pos != start && m_level <= rpcs3::config.misc.log.level.value())
+			if (pos != start && m_level <= g_cfg_gui_log_level)
 			{
 				m_log->SetDefaultStyle(m_color);
 				m_log->AppendText(text.substr(start, pos - start));

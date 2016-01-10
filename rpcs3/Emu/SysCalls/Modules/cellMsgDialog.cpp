@@ -61,7 +61,7 @@ s32 cellMsgDialogOpen2(u32 type, vm::cptr<char> msgString, vm::ptr<CellMsgDialog
 	default: return CELL_MSGDIALOG_ERROR_PARAM;
 	}
 
-	const auto dlg = fxm::import<MsgDialogBase>(WRAP_EXPR(Emu.GetCallbacks().get_msg_dialog()));
+	const auto dlg = fxm::import<MsgDialogBase>(PURE_EXPR(Emu.GetCallbacks().get_msg_dialog()));
 
 	if (!dlg)
 	{

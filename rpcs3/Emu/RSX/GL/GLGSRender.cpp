@@ -1,13 +1,17 @@
 #include "stdafx.h"
-#include "Utilities/rPlatform.h" // only for rImage
+#include "Utilities/Registry.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/System.h"
-#include "Emu/state.h"
 #include "GLGSRender.h"
 #include "../rsx_methods.h"
 #include "../Common/BufferUtils.h"
 
 #define DUMP_VERTEX_DATA 0
+
+extern const cfg::bool_entry g_cfg_rsx_write_color_buffers;
+extern const cfg::bool_entry g_cfg_rsx_write_depth_buffer;
+extern const cfg::bool_entry g_cfg_rsx_read_color_buffers;
+extern const cfg::bool_entry g_cfg_rsx_read_depth_buffer;
 
 namespace
 {
@@ -945,9 +949,7 @@ void GLGSRender::init_buffers(bool skip_reading)
 
 		default:
 		{
-			LOG_ERROR(RSX, "Bad depth format! (%d)", m_surface.depth_format);
-			assert(0);
-			break;
+			throw fmt::exception("Bad depth format! (%d)" HERE, m_surface.depth_format);
 		}
 		}
 
@@ -1023,7 +1025,7 @@ void GLGSRender::read_buffers()
 
 	glDisable(GL_STENCIL_TEST);
 
-	if (rpcs3::state.config.rsx.opengl.read_color_buffers)
+	if (g_cfg_rsx_read_color_buffers)
 	{
 		auto color_format = surface_color_format_to_gl(m_surface.color_format);
 
@@ -1087,7 +1089,7 @@ void GLGSRender::read_buffers()
 		}
 	}
 
-	if (rpcs3::state.config.rsx.opengl.read_depth_buffer)
+	if (g_cfg_rsx_read_depth_buffer)
 	{
 		//TODO: use pitch
 		u32 pitch = rsx::method_registers[NV4097_SET_SURFACE_PITCH_Z];
@@ -1134,7 +1136,7 @@ void GLGSRender::write_buffers()
 	if (!draw_fbo)
 		return;
 
-	if (rpcs3::state.config.rsx.opengl.write_color_buffers)
+	if (g_cfg_rsx_write_color_buffers)
 	{
 		//gl::buffer pbo_color;
 		//__glcheck pbo_color.create(m_draw_tex_color[0].width() * m_draw_tex_color[0].height() * 4);
@@ -1218,7 +1220,7 @@ void GLGSRender::write_buffers()
 		}
 	}
 
-	if (rpcs3::state.config.rsx.opengl.write_depth_buffer)
+	if (g_cfg_rsx_write_depth_buffer)
 	{
 		//TODO: use pitch
 		u32 pitch = rsx::method_registers[NV4097_SET_SURFACE_PITCH_Z];
@@ -1273,7 +1275,7 @@ void GLGSRender::flip(int buffer)
 
 	bool skip_read = false;
 
-	if (draw_fbo && !rpcs3::state.config.rsx.opengl.write_color_buffers)
+	if (draw_fbo && !g_cfg_rsx_write_color_buffers)
 	{
 		skip_read = true;
 		/*

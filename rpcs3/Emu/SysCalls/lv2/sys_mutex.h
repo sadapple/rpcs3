@@ -31,7 +31,7 @@ struct lv2_mutex_t
 	std::atomic<u32> recursive_count{ 0 }; // count of recursive locks
 	std::shared_ptr<CPUThread> owner; // current mutex owner
 
-	sleep_queue_t sq;
+	sleep_queue<CPUThread> sq;
 
 	lv2_mutex_t(bool recursive, u32 protocol, u64 name)
 		: recursive(recursive)
@@ -40,7 +40,7 @@ struct lv2_mutex_t
 	{
 	}
 
-	void unlock(lv2_lock_t& lv2_lock);
+	void unlock(lv2_lock_t);
 };
 
 class PPUThread;

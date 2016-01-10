@@ -458,7 +458,7 @@ struct psv_event_flag_t
 
 	std::mutex mutex;
 
-	sleep_queue_t sq;
+	sleep_queue<CPUThread> sq;
 
 	psv_event_flag_t(const char* name, u32 attr, u32 pattern)
 		: name(name)

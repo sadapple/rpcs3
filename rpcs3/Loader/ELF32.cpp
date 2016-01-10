@@ -1,13 +1,11 @@
 #include "stdafx.h"
 #include "ELF32.h"
-#include "Emu/FS/vfsStream.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/Cell/SPUThread.h"
 #include "Emu/ARMv7/ARMv7Thread.h"
 #include "Emu/ARMv7/ARMv7Decoder.h"
 #include "Emu/ARMv7/PSVFuncList.h"
 #include "Emu/System.h"
-#include "Emu/state.h"
 
 extern void armv7_init_tls();
 
@@ -15,7 +13,7 @@ namespace loader
 {
 	namespace handlers
 	{
-		handler::error_code elf32::init(vfsStream& stream)
+		handler::error_code elf32::init(const fs::file& stream)
 		{
 			m_ehdr = {};
 			m_phdrs.clear();
@@ -28,7 +26,7 @@ namespace loader
 				return res;
 			}
 
-			m_stream->Read(&m_ehdr, sizeof(ehdr));
+			m_stream->read(&m_ehdr, sizeof(ehdr));
 
 			if (!m_ehdr.check())
 			{
@@ -50,20 +48,20 @@ namespace loader
 			if (m_ehdr.data_le.e_phnum)
 			{
 				m_phdrs.resize(m_ehdr.is_le() ? m_ehdr.data_le.e_phnum : m_ehdr.data_be.e_phnum.value());
-				m_stream->Seek(handler::get_stream_offset() + (m_ehdr.is_le() ? m_ehdr.data_le.e_phoff : m_ehdr.data_be.e_phoff.value()));
+				m_stream->seek(handler::get_stream_offset() + (m_ehdr.is_le() ? m_ehdr.data_le.e_phoff : m_ehdr.data_be.e_phoff.value()));
 				size_t size = (m_ehdr.is_le() ? m_ehdr.data_le.e_phnum : m_ehdr.data_be.e_phnum.value()) * sizeof(phdr);
 
-				if (m_stream->Read(m_phdrs.data(), size) != size)
+				if (m_stream->read(m_phdrs.data(), size) != size)
 					return broken_file;
 			}
 
 			if (m_ehdr.data_le.e_shnum)
 			{
 				m_shdrs.resize(m_ehdr.is_le() ? m_ehdr.data_le.e_shnum : m_ehdr.data_be.e_shnum.value());
-				m_stream->Seek(handler::get_stream_offset() + (m_ehdr.is_le() ? m_ehdr.data_le.e_shoff : m_ehdr.data_be.e_shoff.value()));
+				m_stream->seek(handler::get_stream_offset() + (m_ehdr.is_le() ? m_ehdr.data_le.e_shoff : m_ehdr.data_be.e_shoff.value()));
 				size_t size = (m_ehdr.is_le() ? m_ehdr.data_le.e_shnum : m_ehdr.data_be.e_shnum.value()) * sizeof(shdr);
 
-				if (m_stream->Read(m_shdrs.data(), size) != size)
+				if (m_stream->read(m_shdrs.data(), size) != size)
 					return broken_file;
 			}
 
@@ -149,10 +147,10 @@ namespace loader
 					// get secton name
 					//auto name = vm::cptr<char>::make(sname_base + shdr.data_le.sh_name);
 
-					m_stream->Seek(handler::get_stream_offset() + m_shdrs[m_ehdr.data_le.e_shstrndx].data_le.sh_offset + shdr.data_le.sh_name);
+					m_stream->seek(handler::get_stream_offset() + m_shdrs[m_ehdr.data_le.e_shstrndx].data_le.sh_offset + shdr.data_le.sh_name);
 					std::string name;
 					char c;
-					while (m_stream->SRead(c) && c)
+					while (m_stream->read(c) && c)
 					{
 						name.push_back(c);
 					}
@@ -439,8 +437,8 @@ namespace loader
 
 						if (filesz)
 						{
-							m_stream->Seek(handler::get_stream_offset() + offset);
-							m_stream->Read(vm::base(vaddr), filesz);
+							m_stream->seek(handler::get_stream_offset() + offset);
+							m_stream->read(vm::base(vaddr), filesz);
 						}
 					}
 					break;

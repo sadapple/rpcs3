@@ -142,27 +142,27 @@ namespace idm
 			return ptr;
 		}
 
-		return nullptr;
+		return{};
 	}
 
 	// Add a new ID of specified type with specified constructor arguments (returns object or nullptr)
 	template<typename T, typename... Args>
 	std::enable_if_t<std::is_constructible<T, Args...>::value, std::shared_ptr<T>> make_ptr(Args&&... args)
 	{
-		if (auto ptr = add<T>(WRAP_EXPR(std::make_shared<T>(std::forward<Args>(args)...))))
+		if (auto&& ptr = add<T>(WRAP_EXPR(std::make_shared<T>(std::forward<Args>(args)...))))
 		{
 			id_aux_initialize(ptr.get());
 			return ptr;
 		}
 
-		return nullptr;
+		return{};
 	}
 
 	// Add a new ID of specified type with specified constructor arguments (returns id)
 	template<typename T, typename... Args>
 	std::enable_if_t<std::is_constructible<T, Args...>::value, u32> make(Args&&... args)
 	{
-		if (auto ptr = add<T>(WRAP_EXPR(std::make_shared<T>(std::forward<Args>(args)...))))
+		if (auto&& ptr = add<T>(WRAP_EXPR(std::make_shared<T>(std::forward<Args>(args)...))))
 		{
 			id_aux_initialize(ptr.get());
 			return get_last_id();
@@ -173,7 +173,7 @@ namespace idm
 
 	// Add a new ID for an existing object provided (returns new id)
 	template<typename T>
-	u32 import(const std::shared_ptr<T>& ptr)
+	u32 import_existing(const std::shared_ptr<T>& ptr)
 	{
 		static const auto size = sizeof(T); // forbid forward declarations
 
@@ -184,6 +184,21 @@ namespace idm
 		}
 
 		throw EXCEPTION("Out of IDs ('%s')", typeid(T).name());
+	}
+
+	// Add a new ID for an object returned by provider()
+	template<typename T, typename F>
+	auto import(F&& provider) -> decltype(static_cast<std::shared_ptr<T>>(provider()))
+	{
+		static const auto size = sizeof(T); // forbid forward declarations
+
+		if (auto&& ptr = add<T>(std::forward<F>(provider)))
+		{
+			id_aux_initialize(ptr.get());
+			return ptr;
+		}
+
+		return{};
 	}
 
 	// Internal

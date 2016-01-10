@@ -24,7 +24,7 @@ u32 add_psv_func(psv_func data)
 {
 	for (auto& f : g_psv_func_list)
 	{
-		assert(f.nid != data.nid || (&f - g_psv_func_list.data()) < SFI_MAX);
+		ASSERT(f.nid != data.nid || (&f - g_psv_func_list.data()) < SFI_MAX);
 	}
 
 	g_psv_func_list.push_back(data);
@@ -159,7 +159,7 @@ extern psv_log_base sceXml;
 
 void initialize_psv_modules()
 {
-	assert(!g_psv_func_list.size() && !g_psv_modules.size());
+	Expects(!g_psv_func_list.size() && !g_psv_modules.size());
 
 	// fill module list
 	g_psv_modules.push_back(&sceAppMgr);

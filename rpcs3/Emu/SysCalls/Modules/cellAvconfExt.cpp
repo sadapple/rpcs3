@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "Emu/Memory/Memory.h"
 #include "Emu/SysCalls/Modules.h"
-#include "Emu/state.h"
 
 #include "cellAudioIn.h"
 #include "cellAudioOut.h"
@@ -126,12 +125,6 @@ s32 cellVideoOutGetScreenSize(u32 videoOut, vm::ptr<float> screenSize)
 	// TODO: Linux implementation, without using wx
 	// float diagonal = roundf(sqrtf((powf(wxGetDisplaySizeMM().GetWidth(), 2) + powf(wxGetDisplaySizeMM().GetHeight(), 2))) * 0.0393f);
 #endif
-
-	if (rpcs3::config.rsx._3dtv.value())
-	{
-		*screenSize = 24.0f;
-		return CELL_OK;
-	}
 
 	return CELL_VIDEO_OUT_ERROR_VALUE_IS_NOT_SET;
 }
