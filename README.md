@@ -49,4 +49,4 @@ If you are on OSX and want to build with llvm don't forget to add `-DLLVM_DIR=..
 When using GDB, configure it to ignore SIGSEGV signal (`handle SIGSEGV nostop noprint`).
 
 ### Support
-* [Donate by PayPal](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=MPJ3S9XQXCE3G)
+* [Donate by PayPal](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=nekotekina%40gmail%2ecom&lc=US&item_name=RPCS3&currency_code=USD&bn=PP%2dDonationsBF%3abtn_donate_LG%2egif%3aNonHosted)
